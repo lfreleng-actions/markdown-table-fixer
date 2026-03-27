@@ -39,7 +39,8 @@ jobs:
         uses: lfreleng-actions/repository-metadata-action@ceabcd987d13d7bfefd2372e01eebb0ddac45956  # v0.2.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          generate_summary: 'false'
+          github_summary: 'true'
+          gerrit_summary: 'false'
           artifact_upload: 'true'
           artifact_formats: 'json'
 
@@ -68,21 +69,14 @@ jobs:
       - name: 'Verify pushed tag'
         id: 'tag-validate'
         # yamllint disable-line rule:line-length
-        uses: lfreleng-actions/tag-validate-action@fix-ssh-signature-detection  # Testing
+        uses: lfreleng-actions/tag-validate-action@67695fa3d045917ca7ecc0f1d5f0cad03e231104  # v1.0.1
         with:
-          require_type: 'semver'
-          require_signed: 'true'
           token: "${{ secrets.GITHUB_TOKEN }}"
-
-      - name: 'Reject development tags'
-        if: steps.tag-validate.outputs.development_tag == 'true'
-        shell: bash
-        run: |
-          # Reject development tags
-          echo "Development tag pushed; aborting release workflow 🛑"
-          echo "Development tag pushed; aborting release workflow 🛑" \
-            >> "$GITHUB_STEP_SUMMARY"
-          exit 1
+          require_type: 'semver'
+          reject_development: 'true'
+          require_github: 'true'
+          # yamllint disable-line rule:line-length
+          require_signed: 'ssh,gpg-unverifiable'  # Cannot verify GPG without key
 
       - name: 'Ensure draft release exists'
         id: 'ensure-release'
@@ -195,6 +189,7 @@ jobs:
         uses: lfreleng-actions/python-audit-action@1776538e768c52c55c3c96495f6e25f0762ad28f  # v0.2.6
         with:
           python_version: "${{ matrix.python-version }}"
+          permit_fail: "${{ vars.NO_BLOCK_AUDIT_FAIL == 'true' }}"
 
   sbom:
     name: 'Generate SBOM'
@@ -204,6 +199,12 @@ jobs:
     permissions:
       contents: read
     steps:
+      # Harden the runner used by this workflow
+      # yamllint disable-line rule:line-length
+      - uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594  # v2.16.0
+        with:
+          egress-policy: 'audit'
+
       # yamllint disable-line rule:line-length
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
@@ -229,6 +230,9 @@ jobs:
         # yamllint disable-line rule:line-length
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2  # v7.4.0
         id: grype-sarif
+        # The first Grype scan should not abort the job on failure so that
+        # subsequent steps can collect artefacts and display human-readable
+        # results; the final check step will fail the job if needed
         continue-on-error: true
         with:
           sbom: "${{ steps.sbom.outputs.sbom_json_path }}"
@@ -245,6 +249,8 @@ jobs:
           sbom: "${{ steps.sbom.outputs.sbom_json_path }}"
           output-format: "table"
           output-file: "grype-results.txt"
+          # Differs from build-test.yaml, which requires fixes to be applied
+          # Deliberately set to not block releases if/when tags are pushed
           fail-build: "false"
 
       - name: "Upload Grype scan results"
@@ -262,10 +268,34 @@ jobs:
         if: always()
         run: |
             # Grype summary
-            echo "## Grype Summary" >> "$GITHUB_STEP_SUMMARY"
-            [ -f grype-results.txt ] && cat grype-results.txt \
-              >> "$GITHUB_STEP_SUMMARY" || echo "No scan results available" \
-              >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo "## SBOM Summary"
+              echo "SBOM count: ${{ steps.sbom.outputs.component_count }}"
+              echo "Tool used: ${{ steps.sbom.outputs.dependency_manager }}"
+              echo ""
+              echo "## Grype Vulnerability Scan"
+              if [ -f grype-results.txt ]; then
+                cat grype-results.txt
+              else
+                echo "No scan results available"
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+            if [ -f grype-results.txt ]; then
+              echo "--- Grype scan results ---"
+              cat grype-results.txt
+            fi
+
+      - name: "Check Grype scan results"
+        if: >-
+          steps.grype-sarif.outcome == 'failure'
+          && vars.NO_BLOCK_AUDIT_FAIL != 'true'
+        run: |
+            # Check Grype scan results
+            echo "::error::Grype found vulnerabilities" \
+              "at or above severity threshold"
+            echo "Review the Grype Summary above or download the" \
+              "grype-scan-results artifact for details"
+            exit 1
 
   test-pypi:
     name: 'Test PyPI Publishing'
@@ -374,7 +404,8 @@ jobs:
       contents: write  # IMPORTANT: needed for draft release promotion
     timeout-minutes: 2
     outputs:
-      release_url: "${{ steps.promote-release.outputs.release_url }}"
+      # yamllint disable-line rule:line-length
+      release_url: "${{ steps.promote-release.outputs.release_url || steps.set-promoted-url.outputs.release_url }}"
     steps:
       # Harden the runner used by this workflow
       # yamllint disable-line rule:line-length
@@ -413,6 +444,7 @@ jobs:
           latest: true
 
       - name: 'Set release URL for already promoted release'
+        id: 'set-promoted-url'
         if: steps.check-promoted.outputs.already_promoted == 'true'
         shell: bash
         env:

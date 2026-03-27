@@ -3,7 +3,8 @@
 # SPDX-FileCopyrightText: 2025 The Linux Foundation
 
 ci:
-  skip: [pytest, markdown-table-fixer]
+  # pre-commit.ci sandbox prevents network calls; disable gha-workflow-linter
+  skip: [pytest, gha-workflow-linter]
   autofix_commit_msg: |
     Chore: pre-commit autofixes
 
@@ -15,7 +16,7 @@ ci:
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # frozen: v6.0.0
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: check-added-large-files
@@ -49,50 +50,27 @@ repos:
         types: [yaml]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: e05c5c0818279e5ac248ac9e954431ba58865e61  # frozen: v0.15.7
+    rev: 4924b0e01e032fea073ad04a1c5cfa7e4add0afb  # frozen: v0.15.6
     hooks:
       - id: ruff
+        files: ^(scripts|tests|custom_components)/.+\.py$
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
+        files: ^(scripts|tests|custom_components)/.+\.py$
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: a66e98df7b4aeeb3724184b332785976d062b92e  # frozen: v1.19.1
     hooks:
       - id: mypy
-        additional_dependencies:
-          - typer>=0.15.0
-          - rich>=13.9.4
-          - httpx[http2]>=0.28.0
-          - pydantic>=2.10.3
-          - aiolimiter>=1.2.0
-          - tenacity>=9.0.0
-          - wcwidth>=0.2.13
-          - pyyaml>=6.0.0
-          - types-PyYAML>=6.0.0
 
   - repo: https://github.com/btford/write-good
     rev: ab66ce10136dfad5146e69e70f82a3efac8842c1 # frozen: v1.0.8
     hooks:
       - id: write-good
-        args: ["--no-adverb"]
         files: "\\.(rst|md|markdown|mdown|mkdn)$"
-        exclude: |
-          (?x)^(
-            CHANGELOG\.md|
-            IMPLEMENTATION_COMPLETE\.md|
-            IMPLEMENTATION_SUMMARY\.md|
-            SETUP\.md|
-            FEATURES\.md|
-            CONTRIBUTING\.md|
-            PROJECT_SUMMARY\.md|
-            EMOJI_TESTING\.md|
-            examples/bad_tables\.md|
-            examples/emoji_tables\.md|
-            tests/README\.md
-          )$
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: 745eface02aef23e168a8afb6b5737818efbea95 # frozen: v0.11.0.1
+    rev: 745eface02aef23e168a8afb6b5737818efbea95  # frozen: v0.11.0.1
     hooks:
       - id: shellcheck
 
@@ -107,51 +85,51 @@ repos:
     hooks:
       - id: reuse
 
+  # Replaces: https://github.com/rhysd/actionlint
+  # Permits actionlint to run both locally and with precommit.ci/GitHub
+  - repo: https://github.com/Mateusz-Grzelinski/actionlint-py
+    rev: 694e2c0dfb4253d51f3c6c54b8f9fec0a16764dc  # frozen: v1.7.11.24
+    hooks:
+      - id: actionlint
+
   # Check for misspellings in documentation files
   - repo: https://github.com/codespell-project/codespell
     rev: 2ccb47ff45ad361a21071a7eedda4c37e6ae8c5a  # frozen: v2.4.2
     hooks:
       - id: codespell
 
+  # Requires a mirror, primary repo lacks .pre-commit-hooks.yaml
+  - repo: https://github.com/DetachHead/basedpyright-prek-mirror
+    rev: f391127ab7cab6e18596c2f1e3d938193919c0fd  # frozen: 1.38.2
+    hooks:
+      - id: basedpyright
+
   - repo: https://github.com/lfreleng-actions/gha-workflow-linter
     rev: a7caf8f3a1a05688d1cee46615ff94def617e5a3  # frozen: v1.0.2
     hooks:
       - id: gha-workflow-linter
-        args: [lint, .github/workflows/, --verbose, --no-auto-fix]
 
-  # Markdown table fixer (local development version)
-  - repo: local
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 8db279a37c552206d2df62269ff6f9d31125815a  # frozen: 0.37.0
     hooks:
-      - id: markdown-table-fixer
-        name: Markdown Table Fixer
-        description: Fix markdown table formatting issues
-        entry: >-
-          bash -c
-          'for file in "$@"; do
-          markdown-table-fixer lint "$file" --auto-fix || exit 1;
-          done' --
-        language: system
-        files: '\.md$'
-        exclude: |
-          (?x)^(
-            examples/(bad_tables|emoji_tables)\.md|
-            EMOJI_TESTING\.md|
-            FEATURES\.md|
-            IMPLEMENTATION_COMPLETE\.md|
-            PROJECT_SUMMARY\.md|
-            README\.md|
-            scripts/README\.md
-          )$
-        pass_filenames: true
-        require_serial: true
+      - id: check-github-actions
+      - id: check-github-workflows
+      - id: check-jsonschema
+        name: Check GitHub Workflows set timeout-minutes
+        args:
+          - --builtin-schema
+          - github-workflows-require-timeout
+        files: ^\.github/workflows/[^/]+$
+        types:
+          - yaml
+      - id: check-readthedocs
 
-  # Run tests last to ensure all code changes from other hooks are tested
   - repo: local
     hooks:
       - id: pytest
         name: pytest
         entry: uv
-        args: [run, pytest, --tb=short, -q, -x, --no-cov]
+        args: [run, pytest, --tb=short, -q]
         language: system
         pass_filenames: false
         always_run: true
