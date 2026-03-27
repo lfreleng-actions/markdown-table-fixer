@@ -286,20 +286,20 @@ toml = [
 
 [[package]]
 name = "dependamerge"
-version = "0.1.21"
+version = "0.1.30"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiolimiter" },
     { name = "httpx", extra = ["http2"] },
     { name = "pydantic" },
-    { name = "requests" },
+    { name = "pygerrit2" },
     { name = "rich" },
     { name = "tenacity" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/77/a5/6cb9be00e2513826252418913d3460c016027c49002880d2512d430b51f3/dependamerge-0.1.21.tar.gz", hash = "sha256:1a86475e4f09b1b89fabc4d0d2ba870f8a760461d1b459c3bfe382dfc389ecf5", size = 106785, upload-time = "2026-01-17T12:11:04.388Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/53/15/cbb41454e2c64dc6b43f3d5490103040048056a1a9ba1a4e7657a8407fc4/dependamerge-0.1.30.tar.gz", hash = "sha256:96fa1c163046b58cc586fd431d48ca247b21ba29448361db512a9268e6d70d57", size = 171655, upload-time = "2026-03-25T17:18:40.471Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/c1/55a69ca216beb715f0efd1cc5f7ab700edafdb6e56cc62ca060e4020309e/dependamerge-0.1.21-py3-none-any.whl", hash = "sha256:f9fdfbe9630810cdbb570f0f4bab5ed6089d91623329a0afed78e73d9c6a033a", size = 105069, upload-time = "2026-01-17T12:11:03.031Z" },
+    { url = "https://files.pythonhosted.org/packages/40/1a/6761b28fd0f98a050953b5801ac34557c8ff4f51699501b8791e8e0d62cb/dependamerge-0.1.30-py3-none-any.whl", hash = "sha256:cad823f08fd7622ce31ac6a6ce75d39fb4803956ae93b2e593f42a79e0aa533b", size = 174372, upload-time = "2026-03-25T17:18:38.983Z" },
 ]
 
 [[package]]
@@ -658,6 +658,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pbr"
+version = "7.0.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "setuptools" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5e/ab/1de9a4f730edde1bdbbc2b8d19f8fa326f036b4f18b2f72cfbea7dc53c26/pbr-7.0.3.tar.gz", hash = "sha256:b46004ec30a5324672683ec848aed9e8fc500b0d261d40a3229c2d2bbfcedc29", size = 135625, upload-time = "2025-11-03T17:04:56.274Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c0/db/61efa0d08a99f897ef98256b03e563092d36cc38dc4ebe4a85020fe40b31/pbr-7.0.3-py2.py3-none-any.whl", hash = "sha256:ff223894eb1cd271a98076b13d3badff3bb36c424074d26334cd25aebeecea6b", size = 131898, upload-time = "2025-11-03T17:04:54.875Z" },
+]
+
+[[package]]
 name = "platformdirs"
 version = "4.5.1"
 source = { registry = "https://pypi.org/simple" }
@@ -823,6 +835,16 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/88/9d/b06ca6acfe4abb296110fb1273a4d848a0bfb2ff65f3ee92127b3244e16b/pydantic_core-2.41.5-pp311-pypy311_pp73-musllinux_1_1_x86_64.whl", hash = "sha256:f14f8f046c14563f8eb3f45f499cc658ab8d10072961e07225e507adb700e93f", size = 2316992, upload-time = "2025-11-04T13:43:43.602Z" },
     { url = "https://files.pythonhosted.org/packages/36/c7/cfc8e811f061c841d7990b0201912c3556bfeb99cdcb7ed24adc8d6f8704/pydantic_core-2.41.5-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:56121965f7a4dc965bff783d70b907ddf3d57f6eba29b6d2e5dabfaf07799c51", size = 2145302, upload-time = "2025-11-04T13:43:46.64Z" },
 ]
+
+[[package]]
+name = "pygerrit2"
+version = "2.0.15"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pbr" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/73/6a/25fe59e806ff48d250c3da89f394897aa659da356107c2446453854decfa/pygerrit2-2.0.15.tar.gz", hash = "sha256:a18a057ec4d2b54ebbe2ce8457068f57609aa02d2dc94225e176d0c57a44f02a", size = 30652, upload-time = "2021-06-03T20:22:06.334Z" }
 
 [[package]]
 name = "pygments"
@@ -1006,6 +1028,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/37/e6/90b2b33419f59d0f2c4c8a48a4b74b460709a557e8e0064cf33ad894f983/ruff-0.15.8-py3-none-win32.whl", hash = "sha256:bc1f0a51254ba21767bfa9a8b5013ca8149dcf38092e6a9eb704d876de94dc34", size = 10571959, upload-time = "2026-03-26T18:39:36.117Z" },
     { url = "https://files.pythonhosted.org/packages/1f/a2/ef467cb77099062317154c63f234b8a7baf7cb690b99af760c5b68b9ee7f/ruff-0.15.8-py3-none-win_amd64.whl", hash = "sha256:04f79eff02a72db209d47d665ba7ebcad609d8918a134f86cb13dd132159fc89", size = 11743893, upload-time = "2026-03-26T18:39:25.01Z" },
     { url = "https://files.pythonhosted.org/packages/15/e2/77be4fff062fa78d9b2a4dea85d14785dac5f1d0c1fb58ed52331f0ebe28/ruff-0.15.8-py3-none-win_arm64.whl", hash = "sha256:cf891fa8e3bb430c0e7fac93851a5978fc99c8fa2c053b57b118972866f8e5f2", size = 11048175, upload-time = "2026-03-26T18:40:01.06Z" },
+]
+
+[[package]]
+name = "setuptools"
+version = "82.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4f/db/cfac1baf10650ab4d1c111714410d2fbb77ac5a616db26775db562c8fab2/setuptools-82.0.1.tar.gz", hash = "sha256:7d872682c5d01cfde07da7bccc7b65469d3dca203318515ada1de5eda35efbf9", size = 1152316, upload-time = "2026-03-09T12:47:17.221Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9d/76/f789f7a86709c6b087c5a2f52f911838cad707cc613162401badc665acfe/setuptools-82.0.1-py3-none-any.whl", hash = "sha256:a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb", size = 1006223, upload-time = "2026-03-09T12:47:15.026Z" },
 ]
 
 [[package]]
