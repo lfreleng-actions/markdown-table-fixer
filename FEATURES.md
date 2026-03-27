@@ -220,7 +220,7 @@ See CHANGELOG.md for planned features in upcoming releases.
 
 Comprehensive test suite covering:
 
-- Table parsing with various formats
+- Table parsing with different formats
 - Validation of different violation types
 - File scanning and filtering
 - Edge cases and error conditions

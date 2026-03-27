@@ -5,7 +5,7 @@ SPDX-FileCopyrightText: 2025 The Linux Foundation
 
 # Emoji Table Examples
 
-This document contains examples of markdown tables with various emoji
+This document contains examples of markdown tables with different emoji
 characters to test proper width calculation and formatting.
 
 ## Common Status Indicators

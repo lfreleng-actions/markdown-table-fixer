@@ -5,9 +5,9 @@ SPDX-FileCopyrightText: 2025 The Linux Foundation
 
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project will appear in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
@@ -28,9 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **BREAKING**: API method now scans all markdown files by default
-  (previously scanned PR changes only)
+  (the API method used to scan only files changed in the PR)
   - Both API and Git methods now have consistent behavior
-  - Use `--pr-changes-only` flag to restore previous API method behavior
+  - Use `--pr-changes-only` flag to restore the old PR-changes-only API behavior
 - Git method can now limit scope to PR changes with `--pr-changes-only` flag
 - CLI with Typer for user-friendly interface
 - Rich terminal output with progress tracking
@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Scan GitHub organizations for blocked pull requests
 - Automatically fix markdown table issues in PRs
-- Parallel processing of multiple repositories
+- Parallel processing of repositories
 - Commit signing and force-push support
 - Integration with pre-commit.ci failures
 

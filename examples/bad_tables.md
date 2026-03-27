@@ -5,7 +5,7 @@ SPDX-FileCopyrightText: 2025 The Linux Foundation
 
 # Example Document with Bad Tables
 
-This document contains examples of poorly formatted markdown tables that
+This document contains examples of incorrectly formatted markdown tables that
 markdown-table-fixer can detect and fix.
 
 ## Example 1: Missing Spaces

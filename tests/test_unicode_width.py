@@ -5,10 +5,11 @@
 
 from pathlib import Path
 
-import pytest
+import wcwidth
 
 from markdown_table_fixer.models import TableCell
-from markdown_table_fixer.table_fixer import TableFixer
+from markdown_table_fixer.table_fixer import FileFixer
+from markdown_table_fixer.table_parser import TableParser
 
 
 def test_emoji_display_width():
@@ -46,10 +47,23 @@ def test_cell_with_whitespace():
     assert cell.display_width == 7
 
 
-@pytest.mark.skip(
-    reason="Test uses outdated API - needs rewrite for current TableFixer"
-)
-def test_table_with_emojis_alignment(tmp_path: Path):  # type: ignore[no-untyped-def]
+def _display_pipe_positions(line: str) -> list[int]:
+    """Get display-column positions of pipe characters in a line.
+
+    Uses wcswidth on the prefix up to each pipe to stay consistent
+    with the production width logic in TableCell.display_width.
+    """
+    positions: list[int] = []
+    for i, ch in enumerate(line):
+        if ch == "|":
+            prefix = line[:i]
+            w = wcwidth.wcswidth(prefix)
+            # Fall back to len() if wcswidth returns -1 (unprintable chars)
+            positions.append(w if w >= 0 else len(prefix))
+    return positions
+
+
+def test_table_with_emojis_alignment(tmp_path: Path) -> None:
     """Test that tables with emojis are properly aligned."""
     markdown_content = """
 | Feature | Status |
@@ -60,28 +74,31 @@ def test_table_with_emojis_alignment(tmp_path: Path):  # type: ignore[no-untyped
 """
 
     test_file = tmp_path / "test_emoji.md"
-    test_file.write_text(markdown_content.strip())
+    test_file.write_text(markdown_content.strip(), encoding="utf-8")
 
-    fixer = TableFixer(test_file)  # type: ignore[arg-type]
-    result = fixer.fix_tables()  # type: ignore[attr-defined]
+    parser = TableParser(test_file)
+    tables = parser.parse_file()
+    fixer = FileFixer(test_file)
+    result = fixer.fix_file(tables)
 
     # Should fix the table
-    assert result.tables_found == 1
+    assert result.total_tables == 1
 
     # Read the fixed content
-    fixed_content = test_file.read_text()
+    fixed_content = test_file.read_text(encoding="utf-8")
     lines = fixed_content.split("\n")
 
-    # All data rows should have pipes at the same columns
-    data_rows = [lines[2], lines[3], lines[4]]
+    # Filter to table rows only (skip MD060 comments and blank lines)
+    table_rows = [line for line in lines if line.startswith("|")]
 
-    # Extract pipe positions for each row
-    pipe_positions = []
-    for row in data_rows:
-        positions = [i for i, char in enumerate(row) if char == "|"]
-        pipe_positions.append(positions)
+    # Should have header + separator + 3 data rows = 5 table rows
+    assert len(table_rows) >= 5
+    data_rows = table_rows[2:]  # Skip header and separator
 
-    # All rows should have pipes at the same positions
+    # Extract display-width pipe positions for each data row
+    pipe_positions = [_display_pipe_positions(row) for row in data_rows]
+
+    # All rows should have pipes at the same display positions
     assert pipe_positions[0] == pipe_positions[1] == pipe_positions[2], (
         f"Pipes not aligned:\n"
         f"Row 1: {pipe_positions[0]}\n"
@@ -91,10 +108,7 @@ def test_table_with_emojis_alignment(tmp_path: Path):  # type: ignore[no-untyped
     )
 
 
-@pytest.mark.skip(
-    reason="Test uses outdated API - needs rewrite for current TableFixer"
-)
-def test_complex_emoji_table(tmp_path: Path):  # type: ignore[no-untyped-def]
+def test_complex_emoji_table(tmp_path: Path) -> None:
     """Test a more complex table with various emojis."""
     markdown_content = """
 | Tool | Purpose | Status |
@@ -105,32 +119,33 @@ def test_complex_emoji_table(tmp_path: Path):  # type: ignore[no-untyped-def]
 """
 
     test_file = tmp_path / "test_complex.md"
-    test_file.write_text(markdown_content.strip())
+    test_file.write_text(markdown_content.strip(), encoding="utf-8")
 
-    fixer = TableFixer(test_file)  # type: ignore[arg-type]
-    result = fixer.fix_tables()  # type: ignore[attr-defined]
+    parser = TableParser(test_file)
+    tables = parser.parse_file()
+    fixer = FileFixer(test_file)
+    result = fixer.fix_file(tables)
 
-    assert result.tables_found == 1
+    assert result.total_tables == 1
 
     # Read the fixed content
-    fixed_content = test_file.read_text()
+    fixed_content = test_file.read_text(encoding="utf-8")
     lines = fixed_content.split("\n")
 
-    # Check that all rows have the same number of pipes
-    for i, line in enumerate(lines, start=1):
-        if line.strip():
-            pipe_count = line.count("|")
-            # Should have 4 pipes (3 columns = 4 pipes including borders)
-            assert pipe_count == 4, f"Line {i} has {pipe_count} pipes: {line}"
+    # Filter to table rows only (skip MD060 comments and blank lines)
+    table_rows = [line for line in lines if line.startswith("|")]
 
-    # Extract pipe positions for data rows
-    data_rows = [lines[2], lines[3], lines[4]]
-    pipe_positions = []
-    for row in data_rows:
-        positions = [i for i, char in enumerate(row) if char == "|"]
-        pipe_positions.append(positions)
+    # Check that all table rows have the same number of pipes
+    for i, line in enumerate(table_rows, start=1):
+        pipe_count = line.count("|")
+        # Should have 4 pipes (3 columns = 4 pipes including borders)
+        assert pipe_count == 4, f"Table row {i} has {pipe_count} pipes: {line}"
 
-    # All rows should have pipes at the same positions
+    # Extract display-width pipe positions for data rows
+    data_rows = table_rows[2:]  # Skip header and separator
+    pipe_positions = [_display_pipe_positions(row) for row in data_rows]
+
+    # All rows should have pipes at the same display positions
     assert pipe_positions[0] == pipe_positions[1] == pipe_positions[2], (
         f"Pipes not aligned in complex table:\n{fixed_content}"
     )
