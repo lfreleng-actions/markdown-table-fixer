@@ -105,7 +105,7 @@ Checks for issues without fixing (useful for CI):
 
 ```yaml
 - id: markdown-table-fixer-check
-  # Fails if issues found, doesn't modify files
+  # Fails if issues found, doesn't change files
 ```
 
 ### Advanced Configuration
@@ -114,7 +114,7 @@ Checks for issues without fixing (useful for CI):
 
 ```yaml
 - id: markdown-table-fixer
-  files: ^docs/.*\.md$  # Only docs directory
+  files: ^docs/.*\.md$  # Docs directory
 ```
 
 #### Run on specific file types
@@ -299,7 +299,7 @@ pre-commit install
 
 **Problem**: `ModuleNotFoundError: No module named 'markdown_table_fixer'`
 
-**Solution**: Ensure package is installed:
+**Solution**: Install the package first:
 
 ```bash
 pip install markdown-table-fixer
@@ -307,7 +307,7 @@ pip install markdown-table-fixer
 pip install -e .
 ```
 
-### Tables not being fixed
+### Tables not getting fixed
 
 **Problem**: Tool detects issues but doesn't fix them
 

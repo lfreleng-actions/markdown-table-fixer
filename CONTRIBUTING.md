@@ -86,7 +86,7 @@ pytest --cov=markdown_table_fixer --cov-report=html
 
 ### Code Quality
 
-This project uses several tools to maintain code quality:
+This project uses the following tools to maintain code quality:
 
 - **ruff**: Code linting and formatting
 - **mypy**: Static type checking
@@ -113,8 +113,8 @@ Example:
 ```text
 Add support for nested tables
 
-This commit adds the ability to parse and fix tables that are nested
-within other markdown structures like lists or blockquotes.
+This commit adds the ability to parse and fix tables nested within
+other markdown structures like lists or blockquotes.
 
 Fixes #123
 ```
@@ -149,7 +149,7 @@ submit the code under the project's license.
 
 - Follow PEP 8 guidelines
 - Use type hints for function arguments and return values
-- Maximum line length: 80 characters
+- Line length limit: 80 characters
 - Use double quotes for strings
 - Sort imports alphabetically within groups
 
@@ -173,7 +173,7 @@ def parse_table(content: str) -> MarkdownTable:
         A parsed MarkdownTable object
 
     Raises:
-        TableParseError: If the content cannot be parsed as a table
+        TableParseError: If the content fails to parse as a table
 
     Example:
         >>> table = parse_table("| A | B |\n|---|---|\n| 1 | 2 |")
@@ -215,8 +215,8 @@ When suggesting features, include:
 
 ## License
 
-By contributing to this project, you agree that your contributions will be
-licensed under the Apache License 2.0.
+By contributing to this project, you agree that your contributions
+fall under the Apache License 2.0.
 
 ## Questions?
 

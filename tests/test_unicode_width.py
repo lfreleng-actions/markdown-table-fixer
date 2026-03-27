@@ -62,8 +62,8 @@ def test_table_with_emojis_alignment(tmp_path: Path):  # type: ignore[no-untyped
     test_file = tmp_path / "test_emoji.md"
     test_file.write_text(markdown_content.strip())
 
-    fixer = TableFixer(test_file)  # type: ignore[arg-type]
-    result = fixer.fix_tables()  # type: ignore[attr-defined]
+    fixer = TableFixer(test_file)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
+    result = fixer.fix_tables()  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
 
     # Should fix the table
     assert result.tables_found == 1
@@ -107,8 +107,8 @@ def test_complex_emoji_table(tmp_path: Path):  # type: ignore[no-untyped-def]
     test_file = tmp_path / "test_complex.md"
     test_file.write_text(markdown_content.strip())
 
-    fixer = TableFixer(test_file)  # type: ignore[arg-type]
-    result = fixer.fix_tables()  # type: ignore[attr-defined]
+    fixer = TableFixer(test_file)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
+    result = fixer.fix_tables()  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
 
     assert result.tables_found == 1
 

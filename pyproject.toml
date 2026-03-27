@@ -120,6 +120,79 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
+[tool.basedpyright]
+pythonVersion = "3.12"
+pythonPlatform = "All"
+typeCheckingMode = "standard"
+include = ["src", "tests", "scripts"]
+exclude = [
+    "src/markdown_table_fixer/_version.py",
+    ".venv",
+    "build",
+    "dist",
+]
+
+# --- Errors we want to catch and fix ---
+reportMissingTypeArgument = "warning"
+reportOptionalMemberAccess = "warning"
+reportCallIssue = "warning"
+reportAssignmentType = "warning"
+reportReturnType = "warning"
+reportGeneralTypeIssues = "warning"
+reportUninitializedInstanceVariable = "warning"
+
+# --- Intentional patterns we suppress ---
+# Third-party imports cannot be resolved in pre-commit.ci sandbox
+reportMissingImports = false
+# Typer uses Option() calls in parameter defaults by design
+reportCallInDefaultInitializer = false
+# Typer parameters are consumed by the framework, not the function body
+reportUnusedParameter = false
+# Test files legitimately access private members for testing
+reportPrivateUsage = false
+# Test files and CLI create values that are intentionally unused
+reportUnusedCallResult = false
+# Many third-party and dynamic types produce Any
+reportAny = false
+reportExplicitAny = false
+reportUnknownParameterType = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownLambdaType = false
+reportUnknownArgumentType = false
+# Missing type annotations are tracked separately (mypy)
+reportMissingParameterType = false
+# String concatenation in GraphQL queries and Rich output is intentional
+reportImplicitStringConcatenation = false
+# Class attributes in tests don't need annotations
+reportUnannotatedClassAttribute = false
+# Unused imports are handled by ruff (F401)
+reportUnusedImport = false
+# Unused functions are typically CLI helpers or test utilities
+reportUnusedFunction = false
+# Unused variables are handled by ruff (F841)
+reportUnusedVariable = false
+# Deprecated typing imports in auto-generated files
+reportDeprecated = false
+# Override decorators are not required
+reportImplicitOverride = false
+# isinstance checks used for runtime safety
+reportUnnecessaryIsInstance = false
+# Comparison checks used for runtime safety
+reportUnnecessaryComparison = false
+# Unreachable code used for defensive programming
+reportUnreachable = false
+# Missing type stubs for third-party packages
+reportMissingTypeStubs = false
+# Constant redefinition patterns (e.g. try/except fallback classes)
+reportConstantRedefinition = false
+# Attribute access issues in tests (mock objects)
+reportAttributeAccessIssue = false
+# Operator issues in tests (mock assertions)
+reportOperatorIssue = false
+# Index issues in tests (mock return values)
+reportIndexIssue = false
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
@@ -143,6 +216,10 @@ disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
 module = ["typer.*"]
+disallow_untyped_decorators = false
+
+[[tool.mypy.overrides]]
+module = ["markdown_table_fixer.cli"]
 disallow_untyped_decorators = false
 
 [[tool.mypy.overrides]]

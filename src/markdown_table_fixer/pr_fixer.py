@@ -41,6 +41,7 @@ class PRFixer:
         self.client = client
         self.git_config_mode = git_config_mode
         self.logger = logging.getLogger("markdown_table_fixer.pr_fixer")
+        self._cached_max_line_length: int | None = None
 
     def _sanitize_message(self, message: str) -> str:
         """Sanitize error messages to remove tokens.
@@ -628,7 +629,7 @@ class PRFixer:
 
                     # Check if any tables have issues or need MD013 comments
                     # Auto-detect max line length from markdownlint config in the repo
-                    if not hasattr(self, "_cached_max_line_length"):
+                    if self._cached_max_line_length is None:
                         self._cached_max_line_length = (
                             await self._get_markdownlint_max_line_length(
                                 owner, repo, pr_info.head_ref
@@ -1194,7 +1195,7 @@ class PRFixer:
 
                 # Check if any tables have issues or need MD013 comments
                 # Fetch max line length from repository's markdownlint config
-                if not hasattr(self, "_cached_max_line_length"):
+                if self._cached_max_line_length is None:
                     self._cached_max_line_length = (
                         await self._get_markdownlint_max_line_length(
                             owner, repo, branch

@@ -76,7 +76,7 @@ def setup_logging(
 
 
 # Create Typer app with custom help formatter
-class CustomTyper(typer.Typer):
+class CustomTyper(typer.Typer):  # type: ignore[misc]
     """Custom Typer class to add version to help output."""
 
     def __call__(self, *args: object, **kwargs: object) -> object:

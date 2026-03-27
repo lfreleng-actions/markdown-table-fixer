@@ -4,8 +4,8 @@
 # Test Suite Documentation
 
 This directory contains the test suite for markdown-table-fixer. The tests
-provide full isolation from the local development environment and run safely
-in pre-commit hooks.
+provide full isolation from the local development environment and run
+in pre-commit hooks without side effects.
 
 ## Table of Contents
 
@@ -54,13 +54,13 @@ uv run pytest -x
 
 Tests use custom markers for selective execution:
 
-Run only unit tests (excluding integration tests):
+Run unit tests (excluding integration tests):
 
 ```bash
 uv run pytest -m "not integration"
 ```
 
-Run only git-related tests:
+Run git-related tests:
 
 ```bash
 uv run pytest -m git
@@ -106,7 +106,7 @@ Example:
 
 ```python
 def test_git_operation(isolated_git_repo: Path) -> None:
-    """Test that performs git operations safely."""
+    """Test that performs git operations in isolation."""
     # This is an isolated repository
     test_file = isolated_git_repo / "test.md"
     test_file.write_text("# Test")
@@ -304,7 +304,7 @@ The pre-commit hook is safe because:
    directory
 4. **Network isolation**: Tests can't make external API calls by default
 5. **Fast execution**: With `--no-cov` and `-x`, tests fail fast and run
-   quickly
+   in minimal time
 
 ## Troubleshooting
 
@@ -382,7 +382,7 @@ Run tests without coverage during development:
 uv run pytest --no-cov
 ```
 
-Full coverage is only needed for CI/CD and final validation.
+Full coverage is necessary for CI/CD and final validation.
 
 ## Coverage
 

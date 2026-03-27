@@ -62,12 +62,17 @@ repos:
     rev: a66e98df7b4aeeb3724184b332785976d062b92e  # frozen: v1.19.1
     hooks:
       - id: mypy
+        additional_dependencies:
+          - types-PyYAML>=6.0.12.20250915
+          - tenacity>=9.1.2
 
   - repo: https://github.com/btford/write-good
     rev: ab66ce10136dfad5146e69e70f82a3efac8842c1 # frozen: v1.0.8
     hooks:
       - id: write-good
         files: "\\.(rst|md|markdown|mdown|mkdn)$"
+        exclude: "^examples/"
+        args: [--no-illusion, --no-adverb]
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: 745eface02aef23e168a8afb6b5737818efbea95  # frozen: v0.11.0.1

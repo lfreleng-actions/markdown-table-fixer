@@ -5,17 +5,17 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from typing import Any
 
+_rich_available = False
+
 try:
     from rich.console import Console
     from rich.live import Live
     from rich.text import Text
 
-    RICH_AVAILABLE = True
+    _rich_available = True
 except ImportError:
-    RICH_AVAILABLE = False
 
-    # Fallback classes for when Rich is not available
-    class Live:  # type: ignore
+    class Live:  # type: ignore[no-redef]
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
@@ -28,14 +28,14 @@ except ImportError:
         def update(self, *args: Any) -> None:
             pass
 
-    class Text:  # type: ignore
+    class Text:  # type: ignore[no-redef]
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
         def append(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-    class Console:  # type: ignore
+    class Console:  # type: ignore[no-redef]
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
@@ -52,7 +52,7 @@ class ProgressTracker:
         """
         self.organization = organization
         self.start_time = datetime.now()
-        self.console = Console() if RICH_AVAILABLE else None
+        self.console = Console() if _rich_available else None
 
         # Progress counters
         self.total_repositories = 0
@@ -72,7 +72,7 @@ class ProgressTracker:
 
         # Rich Live display
         self.live: Live | None = None
-        self.rich_available = RICH_AVAILABLE
+        self.rich_available = _rich_available
         self.paused = False
 
         # Fallback for when Rich is not available
