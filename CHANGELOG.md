@@ -28,9 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **BREAKING**: API method now scans all markdown files by default
-  (the former default for API method)
+  (the API method used to scan only files changed in the PR)
   - Both API and Git methods now have consistent behavior
-  - Use `--pr-changes-only` flag to restore previous API method behavior
+  - Use `--pr-changes-only` flag to restore the old PR-changes-only API behavior
 - Git method can now limit scope to PR changes with `--pr-changes-only` flag
 - CLI with Typer for user-friendly interface
 - Rich terminal output with progress tracking

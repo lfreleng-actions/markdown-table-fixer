@@ -65,6 +65,10 @@ repos:
         additional_dependencies:
           - types-PyYAML>=6.0.12.20250915
           - tenacity>=9.1.2
+          - typer>=0.20.0
+          - rich>=14.2.0
+          - dependamerge>=0.1.19
+          - httpx[http2]>=0.28.1
 
   - repo: https://github.com/btford/write-good
     rev: ab66ce10136dfad5146e69e70f82a3efac8842c1 # frozen: v1.0.8
