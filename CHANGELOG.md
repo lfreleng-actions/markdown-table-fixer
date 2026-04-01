@@ -60,5 +60,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pre-commit configuration
 - Documentation (README, CONTRIBUTING)
 
-[Unreleased]: https://github.com/lfit/markdown-table-fixer/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/lfit/markdown-table-fixer/releases/tag/v0.1.0
+[Unreleased]: https://github.com/lfreleng-actions/markdown-table-fixer/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/lfreleng-actions/markdown-table-fixer/releases/tag/v0.1.0

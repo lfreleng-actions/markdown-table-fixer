@@ -809,7 +809,7 @@ class PRFixer:
                     f"The commit has been amended{sync_msg} with the formatting fixes.\n\n"
                     f"---\n"
                     f"*Automatically fixed by [markdown-table-fixer]"
-                    f"(https://github.com/lfit/markdown-table-fixer)*"
+                    f"(https://github.com/lfreleng-actions/markdown-table-fixer)*"
                 )
 
                 with suppress(Exception):
@@ -1379,7 +1379,7 @@ class PRFixer:
             [
                 "---",
                 "*This fix was automatically applied by "
-                "[markdown-table-fixer](https://github.com/lfit/markdown-table-fixer)*",
+                "[markdown-table-fixer](https://github.com/lfreleng-actions/markdown-table-fixer)*",
             ]
         )
 
