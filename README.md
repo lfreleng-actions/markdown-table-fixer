@@ -203,7 +203,7 @@ Add to your `.pre-commit-config.yaml`:
 
 ```yaml
 repos:
-  - repo: https://github.com/lfit/markdown-table-fixer
+  - repo: https://github.com/lfreleng-actions/markdown-table-fixer
     rev: v1.0.0
     hooks:
       - id: markdown-table-fixer
@@ -214,7 +214,7 @@ Or use the check variant for validation without auto-fixing:
 
 ```yaml
 repos:
-  - repo: https://github.com/lfit/markdown-table-fixer
+  - repo: https://github.com/lfreleng-actions/markdown-table-fixer
     rev: v1.0.0
     hooks:
       - id: markdown-table-fixer-check
@@ -293,7 +293,7 @@ The tool enforces the following formatting standards:
 ### Setup
 
 ```bash
-git clone https://github.com/lfit/markdown-table-fixer.git
+git clone https://github.com/lfreleng-actions/markdown-table-fixer.git
 cd markdown-table-fixer
 uv venv
 source .venv/bin/activate

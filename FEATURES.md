@@ -120,7 +120,7 @@ Works seamlessly as a pre-commit hook:
 
 ```yaml
 repos:
-  - repo: https://github.com/lfit/markdown-table-fixer
+  - repo: https://github.com/lfreleng-actions/markdown-table-fixer
     rev: v1.0.0
     hooks:
       - id: markdown-table-fixer
@@ -242,4 +242,4 @@ pytest
 ## Support
 
 For issues, questions, or feature requests, please visit:
-<https://github.com/lfit/markdown-table-fixer/issues>
+<https://github.com/lfreleng-actions/markdown-table-fixer/issues>

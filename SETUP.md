@@ -45,7 +45,7 @@ uv pip install markdown-table-fixer
 ### From source
 
 ```bash
-git clone https://github.com/lfit/markdown-table-fixer.git
+git clone https://github.com/lfreleng-actions/markdown-table-fixer.git
 cd markdown-table-fixer
 pip install -e .
 ```
@@ -69,7 +69,7 @@ pip install markdown-table-fixer
 
 ```yaml
 repos:
-  - repo: https://github.com/lfit/markdown-table-fixer
+  - repo: https://github.com/lfreleng-actions/markdown-table-fixer
     rev: v1.0.0  # Use latest version
     hooks:
       - id: markdown-table-fixer
@@ -225,7 +225,7 @@ jobs:
 
 ```bash
 # Clone the repository
-git clone https://github.com/lfit/markdown-table-fixer.git
+git clone https://github.com/lfreleng-actions/markdown-table-fixer.git
 cd markdown-table-fixer
 
 # Create virtual environment
@@ -425,7 +425,7 @@ sudo apt-get install python3.11  # Ubuntu/Debian
 
 If you encounter issues not covered here:
 
-1. Check the [GitHub Issues](https://github.com/lfit/markdown-table-fixer/issues)
+1. Check the [GitHub Issues](https://github.com/lfreleng-actions/markdown-table-fixer/issues)
 2. Review the [README](README.md) and [CONTRIBUTING](CONTRIBUTING.md)
 3. Open a new issue with:
    - Your operating system and Python version

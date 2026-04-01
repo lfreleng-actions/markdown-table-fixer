@@ -56,9 +56,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/lfit/markdown-table-fixer"
-Repository = "https://github.com/lfit/markdown-table-fixer.git"
-"Bug Tracker" = "https://github.com/lfit/markdown-table-fixer/issues"
+Homepage = "https://github.com/lfreleng-actions/markdown-table-fixer"
+Repository = "https://github.com/lfreleng-actions/markdown-table-fixer.git"
+"Bug Tracker" = "https://github.com/lfreleng-actions/markdown-table-fixer/issues"
 
 [project.scripts]
 markdown-table-fixer = "markdown_table_fixer.cli:app"
