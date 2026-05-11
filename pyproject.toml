@@ -252,13 +252,11 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["src/markdown_table_fixer"]
+source = ["markdown_table_fixer"]
 omit = [
     "*/tests/*",
     "*/test_*",
     "*/__pycache__/*",
-    "*/venv/*",
-    "*/.venv/*",
 ]
 
 [tool.coverage.report]
