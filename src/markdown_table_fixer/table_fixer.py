@@ -425,17 +425,21 @@ class FileFixer:
         Returns:
             True if table contains emojis
         """
-        # Emoji pattern - matches most common emoji ranges
+        # Emoji pattern - matches most common emoji ranges.
+        #
+        # The ranges below are deliberately non-overlapping and sorted in
+        # ascending order. They represent the exact same set of code points
+        # as the original (overlapping) range list, merged into contiguous
+        # blocks to avoid CodeQL's "overly permissive regular expression
+        # range" warnings (py/overly-large-range). The covered code points
+        # span enclosed characters, dingbats, flags, emoticons, transport,
+        # and supplemental/extended pictographs.
         emoji_pattern = re.compile(
             "["
-            "\U0001f600-\U0001f64f"  # emoticons
-            "\U0001f300-\U0001f5ff"  # symbols & pictographs
+            "\U000024c2-\U0001f251"  # enclosed chars, dingbats, flags
+            "\U0001f300-\U0001f64f"  # pictographs & emoticons
             "\U0001f680-\U0001f6ff"  # transport & map symbols
-            "\U0001f1e0-\U0001f1ff"  # flags (iOS)
-            "\U00002702-\U000027b0"  # dingbats
-            "\U000024c2-\U0001f251"  # enclosed characters
-            "\U0001f900-\U0001f9ff"  # supplemental symbols
-            "\U0001fa00-\U0001faff"  # extended pictographs
+            "\U0001f900-\U0001faff"  # supplemental & extended pictographs
             "]+",
             flags=re.UNICODE,
         )
