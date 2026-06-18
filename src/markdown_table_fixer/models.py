@@ -14,7 +14,9 @@ from typing import Any
 import wcwidth
 
 
-class OutputFormat(str, Enum):
+# Inherit from (str, Enum) rather than enum.StrEnum to preserve Python
+# 3.10 support (StrEnum was only added in 3.11; see requires-python).
+class OutputFormat(str, Enum):  # noqa: UP042
     """Output format options."""
 
     TEXT = "text"
@@ -22,7 +24,8 @@ class OutputFormat(str, Enum):
     TABLE = "table"
 
 
-class ViolationType(str, Enum):
+# See OutputFormat above for why (str, Enum) is used instead of StrEnum.
+class ViolationType(str, Enum):  # noqa: UP042
     """Types of table formatting violations."""
 
     MISALIGNED_PIPE = "misaligned_pipe"

@@ -13,7 +13,9 @@ import subprocess
 logger = logging.getLogger(__name__)
 
 
-class GitConfigMode(str, Enum):
+# Inherit from (str, Enum) rather than enum.StrEnum to preserve Python
+# 3.10 support (StrEnum was only added in 3.11; see requires-python).
+class GitConfigMode(str, Enum):  # noqa: UP042
     """Git configuration modes."""
 
     USER_INHERIT = (
