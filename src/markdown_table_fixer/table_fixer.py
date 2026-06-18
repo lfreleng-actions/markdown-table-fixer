@@ -17,6 +17,41 @@ if TYPE_CHECKING:
 from .models import FileFixResult, MarkdownTable, TableFix, TableRow
 from .table_validator import TableValidator
 
+# Inclusive ``(low, high)`` code-point ranges used to detect emoji (and
+# emoji-like wide characters) in table cells. The ranges are intentionally
+# adjacent but never overlapping; in particular the U+1F252-U+1F2FF gap
+# between the first two ranges is preserved so the matched set stays
+# identical to the historical implementation (do not merge those ranges).
+#
+# Membership is tested with explicit integer comparisons rather than a
+# regex character class. A character class containing several astral-plane
+# (> U+FFFF) ranges triggers CodeQL's py/overly-large-range warning: the
+# analyzer renders every astral escape as ``\ufffd``, so the distinct
+# ranges all appear to collapse onto ``\ufffd-\ufffd`` and look like they
+# overlap. Using ``ord`` comparisons sidesteps that false positive while
+# preserving behaviour.
+_EMOJI_CODEPOINT_RANGES: tuple[tuple[int, int], ...] = (
+    (0x24C2, 0x1F251),  # enclosed chars, dingbats, flags
+    (0x1F300, 0x1F64F),  # pictographs & emoticons
+    (0x1F680, 0x1F6FF),  # transport & map symbols
+    (0x1F900, 0x1FAFF),  # supplemental & extended pictographs
+)
+
+
+def _char_is_emoji(char: str) -> bool:
+    """Return True if ``char`` falls within a known emoji code-point range.
+
+    Args:
+        char: A single character to test.
+
+    Returns:
+        True if the character's code point is within an emoji range.
+    """
+    code_point = ord(char)
+    return any(
+        low <= code_point <= high for low, high in _EMOJI_CODEPOINT_RANGES
+    )
+
 
 class TableFixer:
     """Fix markdown table formatting issues."""
@@ -425,28 +460,9 @@ class FileFixer:
         Returns:
             True if table contains emojis
         """
-        # Emoji pattern - matches most common emoji ranges.
-        #
-        # The ranges below are deliberately non-overlapping and sorted in
-        # ascending order. They represent the exact same set of code points
-        # as the original (overlapping) range list, merged into contiguous
-        # blocks to avoid CodeQL's "overly permissive regular expression
-        # range" warnings (py/overly-large-range). The covered code points
-        # span enclosed characters, dingbats, flags, emoticons, transport,
-        # and supplemental/extended pictographs.
-        emoji_pattern = re.compile(
-            "["
-            "\U000024c2-\U0001f251"  # enclosed chars, dingbats, flags
-            "\U0001f300-\U0001f64f"  # pictographs & emoticons
-            "\U0001f680-\U0001f6ff"  # transport & map symbols
-            "\U0001f900-\U0001faff"  # supplemental & extended pictographs
-            "]+",
-            flags=re.UNICODE,
-        )
-
         for row in table.rows:
             for cell in row.cells:
-                if emoji_pattern.search(cell.content):
+                if any(_char_is_emoji(char) for char in cell.content):
                     return True
         return False
 
