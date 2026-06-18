@@ -43,13 +43,16 @@ def test_normalize_org_name_valid(supplied: str, expected: str) -> None:
         "evil-github.com.example/payload",
         "notgithub.com/foo",
         "github.com.attacker.test/victim",
+        # Surrounding whitespace is stripped before the host check.
+        "  notgithub.com/foo  ",
     ],
 )
 def test_normalize_org_name_rejects_lookalike_hosts(supplied: str) -> None:
     """Look-alike hosts are not mistaken for github.com."""
-    # The value is returned unchanged (only leading/trailing slashes
-    # stripped); no GitHub prefix stripping is applied.
-    assert _normalize_org_name(supplied) == supplied.strip("/")
+    # No GitHub prefix stripping is applied: the value is returned with
+    # only surrounding whitespace and leading/trailing slashes stripped
+    # (whitespace is stripped first by the helper).
+    assert _normalize_org_name(supplied) == supplied.strip().strip("/")
 
 
 @pytest.mark.parametrize(
