@@ -33,16 +33,20 @@ jobs:
 
       - name: 'Show concurrency group'
         shell: bash
-        # yamllint disable rule:line-length
         run: |
-          # Show concurrency group
+          # Show concurrency group. This mirrors the workflow-level
+          # concurrency definition (github.workflow + github.ref). Use
+          # the built-in runner environment variables rather than
+          # interpolating expression context into the run body.
+          group="${GITHUB_WORKFLOW}-${GITHUB_REF}"
           {
             echo '## Release Drafter'
-            echo "Concurrency group: rd-${{ github.event_name }}-${{ github.event.number }}-${{ github.ref }}"
-          } >> "GITHUB_STEP_SUMMARY"
-          echo "Concurrency group: rd-${{ github.event_name }}-${{ github.event.number }}-${{ github.ref }}"
+            echo "Concurrency group: $group"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Concurrency group: $group"
 
       - name: 'Update draft release'
+        # yamllint disable-line rule:line-length
         uses: release-drafter/release-drafter@ed4bc48ec97379be2258e7b7ac2624a3e26ab809 # v7.4.0
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
