@@ -1,6 +1,6 @@
 ---
-# SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2025 The Linux Foundation
+# SPDX-License-Identifier: Apache-2.0
 
 name: 'Release Drafter'
 
@@ -20,33 +20,26 @@ jobs:
   update_release_draft:
     name: 'Update Release Draft'
     permissions:
-      # write permission is required to create releases
-      contents: write
+      contents: write  # Create and update draft releases
     runs-on: 'ubuntu-latest'
     timeout-minutes: 3
     steps:
-      # Harden the runner used by this workflow
+      # Load the egress allow-list out-of-band from the
+      # organisation's .github repository and publish it as
+      # $CONNECTION_ALLOW_LIST for the harden-runner step below.
       # yamllint disable-line rule:line-length
-      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - uses: lfreleng-actions/harden-runner-block-action@6db537b3e6d060c3287c5a3ce2c28b55b0af330d  # v0.2.1
         with:
-          egress-policy: 'audit'
+          config: '@18d9c4446bea555d0783e850f6d295f844fe8f67'  # v0.1.1
 
-      - name: 'Show concurrency group'
-        shell: bash
-        run: |
-          # Show concurrency group. This mirrors the workflow-level
-          # concurrency definition (github.workflow + github.ref). Use
-          # the built-in runner environment variables rather than
-          # interpolating expression context into the run body.
-          group="${GITHUB_WORKFLOW}-${GITHUB_REF}"
-          {
-            echo '## Release Drafter'
-            echo "Concurrency group: $group"
-          } >> "$GITHUB_STEP_SUMMARY"
-          echo "Concurrency group: $group"
-
-      - name: 'Update draft release'
+      # Harden the runner with the just-loaded allow-list.
+      - name: 'Harden runner (block)'
         # yamllint disable-line rule:line-length
-        uses: release-drafter/release-drafter@4d75298e00d9e34c483e5ff8c68d0ea1c1940c1e # v7.5.1
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411  # v2.19.4
+        with:
+          egress-policy: 'block'
+          allowed-endpoints: >
+            ${{ env.CONNECTION_ALLOW_LIST }}
+
+      # yamllint disable-line rule:line-length
+      - uses: release-drafter/release-drafter@4d75298e00d9e34c483e5ff8c68d0ea1c1940c1e  # v7.5.1
