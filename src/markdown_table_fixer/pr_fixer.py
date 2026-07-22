@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
+from dataclasses import dataclass, field
 import logging
 from pathlib import Path
 import re
@@ -22,6 +23,49 @@ from .rule_disabler import filter_violations_by_disabled_rules
 from .table_fixer import FileFixer
 from .table_parser import MarkdownFileScanner, TableParser
 from .table_validator import TableValidator
+
+
+def _sanitized_temp_path(filename: str) -> Path:
+    """Create a unique, securely-created temp file for *filename*.
+
+    ``filename`` is repo-controlled, so only its path components (minus
+    any ``..``/separators) form a readable suffix; the file itself is
+    created via :func:`tempfile.NamedTemporaryFile`, giving it an
+    unpredictable name under the system temp directory. This prevents
+    path traversal (a crafted ``../../etc/passwd`` cannot escape the
+    temp dir) as well as symlink and cross-run collision attacks on an
+    otherwise predictable shared path.
+    """
+    parts = [
+        part
+        for part in Path(filename).parts
+        if part not in ("", "/", "\\", "..", ".")
+    ]
+    safe_name = "_".join(parts) or "markdown_table_fixer.tmp"
+    with tempfile.NamedTemporaryFile(
+        prefix="mdtf_", suffix=f"_{safe_name}", delete=False
+    ) as tmp:
+        return Path(tmp.name)
+
+
+@dataclass
+class _TableFixStats:
+    """Accumulated results from fixing markdown tables in a repository."""
+
+    files_modified: list[Path] = field(default_factory=list)
+    tables_fixed: int = 0
+    tables_with_md013: int = 0
+    tables_with_md060: int = 0
+
+
+@dataclass
+class _PRTableUpdates:
+    """Collected file updates for a single batch commit on a PR."""
+
+    batch_updates: list[dict[str, Any]] = field(default_factory=list)
+    files_fixed: int = 0
+    tables_fixed: int = 0
+    fixed_files: list[dict[str, Any]] = field(default_factory=list)
 
 
 class PRFixer:
@@ -94,12 +138,10 @@ class PRFixer:
 
         for config_file in config_files:
             try:
-                # Fetch config file from repository using GitHubClient
                 content = await self.client.get_file_content(
                     owner, repo, config_file, branch
                 )
 
-                # Parse based on file extension
                 config = None
                 if config_file.endswith((".yaml", ".yml")):
                     config = yaml.safe_load(content)
@@ -202,8 +244,7 @@ class PRFixer:
 
         # Parse tables from content
         # Create temp file for parsing
-        temp_path = Path(f"/tmp/{filename}")
-        temp_path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = _sanitized_temp_path(filename)
         temp_path.write_text(content, encoding="utf-8")
 
         parser = TableParser(temp_path)
@@ -253,13 +294,39 @@ class PRFixer:
         # Read back the fixed content
         fixed_content = temp_path.read_text(encoding="utf-8")
 
-        # Clean up temp file
         temp_path.unlink()
 
         # Check if content actually changed
         has_changes = fixed_content != content
 
         return has_changes, has_validation_issues, fixed_content
+
+    def _error_pr_info(
+        self, pr_url: str, pr_number: int = 0, repository: str = ""
+    ) -> PRInfo:
+        """Create a placeholder PRInfo for error responses.
+
+        Args:
+            pr_url: PR URL for error messages
+            pr_number: PR number if known (0 otherwise)
+            repository: ``owner/repo`` string if known (empty otherwise)
+
+        Returns:
+            PRInfo with placeholder values for error cases
+        """
+        return PRInfo(
+            number=pr_number,
+            title="",
+            repository=repository,
+            url=pr_url,
+            author="",
+            is_draft=False,
+            head_ref="",
+            head_sha="",
+            base_ref="",
+            mergeable="",
+            merge_state_status="",
+        )
 
     def _create_error_pr_info(self, pr_url: str) -> PRInfo:
         """Create a dummy PRInfo for error responses.
@@ -270,19 +337,7 @@ class PRFixer:
         Returns:
             PRInfo with dummy values for error cases
         """
-        return PRInfo(
-            number=0,
-            title="",
-            repository="",
-            url=pr_url,
-            author="",
-            is_draft=False,
-            head_ref="",
-            head_sha="",
-            base_ref="",
-            mergeable="",
-            merge_state_status="",
-        )
+        return self._error_pr_info(pr_url)
 
     def _validate_parameters(
         self,
@@ -302,7 +357,6 @@ class PRFixer:
         Returns:
             GitHubFixResult with error if validation fails, None if valid
         """
-        # Validate update_method
         if update_method not in ["git", "api"]:
             return GitHubFixResult(
                 pr_info=self._create_error_pr_info(pr_url),
@@ -366,32 +420,18 @@ class PRFixer:
         sync_strategy = sync_strategy.lower()
         conflict_strategy = conflict_strategy.lower()
 
-        # Validate parameters
         validation_error = self._validate_parameters(
             pr_url, update_method, sync_strategy, conflict_strategy
         )
         if validation_error:
             return validation_error
 
-        # Parse PR URL
         match = re.match(
             r"https?://github\.com/([^/]+)/([^/]+)/pull/(\d+)", pr_url
         )
         if not match:
             return GitHubFixResult(
-                pr_info=PRInfo(
-                    number=0,
-                    title="",
-                    repository="",
-                    url=pr_url,
-                    author="",
-                    is_draft=False,
-                    head_ref="",
-                    head_sha="",
-                    base_ref="",
-                    mergeable="",
-                    merge_state_status="",
-                ),
+                pr_info=self._create_error_pr_info(pr_url),
                 success=False,
                 message=f"Invalid PR URL format: {pr_url}",
             )
@@ -402,72 +442,28 @@ class PRFixer:
         self.logger.debug(f"Processing PR: {owner}/{repo}#{pr_number}")
 
         try:
-            # Get PR details
             pr_data = await self.client._request(
                 "GET", f"/repos/{owner}/{repo}/pulls/{pr_number}"
             )
 
             if not isinstance(pr_data, dict):
                 return GitHubFixResult(
-                    pr_info=PRInfo(
-                        number=pr_number,
-                        title="",
-                        repository=f"{owner}/{repo}",
-                        url=pr_url,
-                        author="",
-                        is_draft=False,
-                        head_ref="",
-                        head_sha="",
-                        base_ref="",
-                        mergeable="",
-                        merge_state_status="",
+                    pr_info=self._error_pr_info(
+                        pr_url, pr_number, f"{owner}/{repo}"
                     ),
                     success=False,
                     message="Failed to fetch PR data",
                 )
 
-            head = pr_data.get("head", {})
-            head_sha = head.get("sha", "")
-            head_ref = head.get("ref", "")
-            head_repo = head.get("repo", {})
-            clone_url = head_repo.get("clone_url", "")
-
-            pr_info = PRInfo(
-                number=pr_number,
-                title=pr_data.get("title", ""),
-                repository=f"{owner}/{repo}",
-                url=pr_url,
-                author=pr_data.get("user", {}).get("login", ""),
-                is_draft=pr_data.get("draft", False),
-                head_ref=head_ref,
-                head_sha=head_sha,
-                base_ref=pr_data.get("base", {}).get("ref", ""),
-                mergeable=pr_data.get("mergeable", "unknown"),
-                merge_state_status=pr_data.get("mergeable_state", "unknown"),
+            pr_info, clone_url = self._build_pr_info(
+                pr_data, owner, repo, pr_url, pr_number
             )
 
-            # Check if PR is closed
-            pr_state = pr_data.get("state", "").lower()
-            if pr_state != "open":
-                # Check if it was merged
-                is_merged = pr_data.get("merged", False)
-                state_display = (
-                    "merged"
-                    if is_merged
-                    else (pr_state if pr_state else "closed")
-                )
-                return GitHubFixResult(
-                    pr_info=pr_info,
-                    success=False,
-                    message=f"Pull request #{pr_number} is {state_display} and cannot be processed",
-                )
-
-            if not clone_url and update_method == "git":
-                return GitHubFixResult(
-                    pr_info=pr_info,
-                    success=False,
-                    message="PR head repository not accessible",
-                )
+            precheck_error = self._precheck_pr(
+                pr_info, pr_data, pr_number, clone_url, update_method
+            )
+            if precheck_error:
+                return precheck_error
 
             # Route to appropriate update method
             if update_method == "api":
@@ -481,39 +477,92 @@ class PRFixer:
                     pr_changes_only=pr_changes_only,
                     add_dco=add_dco,
                 )
-            else:
-                # Clone and fix using Git operations
-                return await self._fix_pr_with_git(
-                    pr_info,
-                    clone_url,
-                    owner,
-                    repo,
-                    sync_strategy=sync_strategy,
-                    conflict_strategy=conflict_strategy,
-                    dry_run=dry_run,
-                    pr_changes_only=pr_changes_only,
-                )
+            # Clone and fix using Git operations
+            return await self._fix_pr_with_git(
+                pr_info,
+                clone_url,
+                owner,
+                repo,
+                sync_strategy=sync_strategy,
+                conflict_strategy=conflict_strategy,
+                dry_run=dry_run,
+                pr_changes_only=pr_changes_only,
+            )
 
         except Exception as e:
             self.logger.error(f"Error fixing PR: {e}", exc_info=True)
             return GitHubFixResult(
-                pr_info=PRInfo(
-                    number=pr_number,
-                    title="",
-                    repository=f"{owner}/{repo}",
-                    url=pr_url,
-                    author="",
-                    is_draft=False,
-                    head_ref="",
-                    head_sha="",
-                    base_ref="",
-                    mergeable="",
-                    merge_state_status="",
+                pr_info=self._error_pr_info(
+                    pr_url, pr_number, f"{owner}/{repo}"
                 ),
                 success=False,
                 message=str(e),
                 error=str(e),
             )
+
+    def _build_pr_info(
+        self,
+        pr_data: dict[str, Any],
+        owner: str,
+        repo: str,
+        pr_url: str,
+        pr_number: int,
+    ) -> tuple[PRInfo, str]:
+        """Build a PRInfo from PR data, returning it with the head clone URL."""
+        head = pr_data.get("head", {})
+        head_repo = head.get("repo", {})
+        clone_url = head_repo.get("clone_url", "")
+        user = pr_data.get("user", {})
+        base = pr_data.get("base", {})
+
+        pr_info = PRInfo(
+            number=pr_number,
+            title=pr_data.get("title", ""),
+            repository=f"{owner}/{repo}",
+            url=pr_url,
+            author=user.get("login", ""),
+            is_draft=pr_data.get("draft", False),
+            head_ref=head.get("ref", ""),
+            head_sha=head.get("sha", ""),
+            base_ref=base.get("ref", ""),
+            mergeable=pr_data.get("mergeable", "unknown"),
+            merge_state_status=pr_data.get("mergeable_state", "unknown"),
+        )
+        return pr_info, clone_url
+
+    def _precheck_pr(
+        self,
+        pr_info: PRInfo,
+        pr_data: dict[str, Any],
+        pr_number: int,
+        clone_url: str,
+        update_method: str,
+    ) -> GitHubFixResult | None:
+        """Return an error result if the PR cannot be processed, else None."""
+        # Check if PR is closed
+        pr_state = pr_data.get("state", "").lower()
+        if pr_state != "open":
+            # Check if it was merged
+            is_merged = pr_data.get("merged", False)
+            state_display = (
+                "merged"
+                if is_merged
+                else (pr_state if pr_state else "closed")
+            )
+            return GitHubFixResult(
+                pr_info=pr_info,
+                success=False,
+                message=f"Pull request #{pr_number} is {state_display} and cannot be processed",
+            )
+
+        if not clone_url and update_method == "git":
+            return GitHubFixResult(
+                pr_info=pr_info,
+                success=False,
+                message="PR head repository not accessible",
+            )
+
+        return None
 
     async def _fix_pr_with_git(
         self,
@@ -551,197 +600,31 @@ class PRFixer:
             self.logger.debug(f"Cloning {clone_url} to {repo_dir}")
 
             try:
-                # Clone the repository with authentication
-                # Note: Token is embedded in URL for git authentication. We use capture_output=True
-                # and sanitize all error messages to prevent token leakage in logs.
-                auth_url = clone_url.replace(
-                    "https://", f"https://x-access-token:{self.client.token}@"
-                )
-                subprocess.run(
-                    [
-                        "git",
-                        "clone",
-                        "--branch",
-                        pr_info.head_ref,
-                        auth_url,
-                        str(repo_dir),
-                    ],
-                    check=True,
-                    capture_output=True,
-                    text=True,
+                self._clone_repository(clone_url, pr_info.head_ref, repo_dir)
+                await self._maybe_sync_with_base(
+                    repo_dir, pr_info, sync_strategy, conflict_strategy
                 )
 
-                # Sync with base branch if requested
-                if sync_strategy in ["rebase", "merge"]:
-                    try:
-                        await self._sync_with_base(
-                            repo_dir,
-                            pr_info.base_ref,
-                            pr_info.head_ref,
-                            sync_strategy,
-                            conflict_strategy,
-                        )
-                    except subprocess.CalledProcessError as e:
-                        sanitized_stderr = self._sanitize_message(
-                            e.stderr or ""
-                        )
-                        error_msg = f"Failed to sync with base branch using {sync_strategy}: {sanitized_stderr}"
-                        self.logger.error(error_msg)
-                        raise RuntimeError(error_msg) from e
+                markdown_files = await self._find_markdown_files(
+                    repo_dir, owner, repo, pr_info, pr_changes_only
+                )
+                self.logger.debug(
+                    f"Found {len(markdown_files)} markdown files"
+                )
 
-                # Find and fix markdown files
-                if pr_changes_only:
-                    # Only process files changed in the PR
-                    changed_files = await self.client.get_pr_files(
-                        owner, repo, pr_info.number
-                    )
-                    markdown_files = [
-                        repo_dir / f.get("filename", "")
-                        for f in changed_files
-                        if f.get("filename", "").endswith(".md")
-                        and f.get("status") != "removed"
-                        and (repo_dir / f.get("filename", "")).exists()
-                    ]
-                else:
-                    # Scan all markdown files in the repository
-                    scanner = MarkdownFileScanner(repo_dir)
-                    markdown_files = scanner.find_markdown_files()
-
-                self.logger.debug(f"Found {len(markdown_files)} markdown files")
-
-                files_modified = []
-                tables_fixed = 0
-                tables_with_md013 = 0
-                tables_with_md060 = 0
-
-                for md_file in markdown_files:
-                    self.logger.debug(f"Processing {md_file}")
-
-                    # Parse tables
-                    parser = TableParser(md_file)
-                    tables = parser.parse_file()
-
-                    if not tables:
-                        continue
-
-                    # Check if any tables have issues or need MD013 comments
-                    # Auto-detect max line length from markdownlint config in the repo
-                    if self._cached_max_line_length is None:
-                        self._cached_max_line_length = (
-                            await self._get_markdownlint_max_line_length(
-                                owner, repo, pr_info.head_ref
-                            )
-                        )
-                    max_line_length = self._cached_max_line_length
-
-                    has_issues = False
-                    needs_md013 = False
-
-                    for table in tables:
-                        has_validation_issues, table_needs_md013 = (
-                            self._check_table_needs_fixes(
-                                table, max_line_length
-                            )
-                        )
-
-                        if has_validation_issues:
-                            has_issues = True
-
-                        if table_needs_md013:
-                            needs_md013 = True
-
-                    # Skip if no issues and no MD013 needed
-                    if not has_issues and not needs_md013:
-                        continue
-
-                    # Fix the file (auto-detect line length from markdownlint config)
-                    fixer = FileFixer(md_file)
-                    fix_result = fixer.fix_file(tables, dry_run=False)
-
-                    # Track results
-                    files_modified.append(md_file)
-                    tables_fixed += fix_result.tables_fixed
-                    tables_with_md013 += fix_result.tables_with_md013
-                    tables_with_md060 += fix_result.tables_with_md060
-
-                    # Log what was done
-                    if fix_result.tables_fixed > 0:
-                        self.logger.debug(
-                            f"Fixed {fix_result.tables_fixed} table(s) in {md_file.name}"
-                        )
-                    if fix_result.tables_with_md013 > 0:
-                        self.logger.debug(
-                            f"Added MD013 comments for {fix_result.tables_with_md013} table(s) in {md_file.name}"
-                        )
-                    if fix_result.tables_with_md060 > 0:
-                        self.logger.debug(
-                            f"Added MD060 comments for {fix_result.tables_with_md060} table(s) in {md_file.name}"
-                        )
+                stats = await self._fix_markdown_files(
+                    markdown_files, owner, repo, pr_info
+                )
 
                 # Handle no files modified or dry-run mode
-                if not files_modified or dry_run:
-                    if not files_modified:
-                        message = "No markdown table issues found"
-                        result_files: list[Path] = []
-                    else:
-                        file_names = [
-                            str(f.relative_to(repo_dir)) for f in files_modified
-                        ]
-                        # Build multi-line message breaking down each type of fix
-                        message_lines = [
-                            f"Would fix {len(files_modified)} file(s): {', '.join(file_names)}"
-                        ]
-
-                        if tables_fixed > 0:
-                            message_lines.append(
-                                f"   {tables_fixed} table(s) with alignment/spacing issues"
-                            )
-                        if tables_with_md013 > 0:
-                            message_lines.append(
-                                f"   {tables_with_md013} table(s) with MD013 comments"
-                            )
-                        if tables_with_md060 > 0:
-                            message_lines.append(
-                                f"   {tables_with_md060} table(s) with MD060 comments"
-                            )
-
-                        message = "\n".join(message_lines)
-                        result_files = files_modified
-                    return GitHubFixResult(
-                        pr_info=pr_info,
-                        success=True,
-                        message=message,
-                        files_modified=result_files,
+                if not stats.files_modified or dry_run:
+                    return self._build_dry_run_result(
+                        pr_info, stats, repo_dir
                     )
 
-                # Configure git identity and signing
-                git_config = configure_git_identity(
-                    repo_dir,
-                    mode=config_mode,
-                    bot_name="markdown-table-fixer",
-                    bot_email="noreply@linuxfoundation.org",
-                )
-                self.logger.debug(f"Git config applied: {git_config}")
-
-                # Stage the changes
-                for file_path in files_modified:
-                    rel_path = file_path.relative_to(repo_dir)
-                    subprocess.run(
-                        ["git", "add", str(rel_path)],
-                        cwd=repo_dir,
-                        check=True,
-                        capture_output=True,
-                    )
-
-                # Check if there are actually changes to commit
-                result = subprocess.run(
-                    ["git", "diff", "--cached", "--quiet"],
-                    check=False,
-                    cwd=repo_dir,
-                    capture_output=True,
-                )
-
-                if result.returncode == 0:
+                if not self._stage_changes(
+                    repo_dir, config_mode, stats.files_modified
+                ):
                     # No changes - return early with success
                     self.logger.debug("No formatting changes needed")
                     return GitHubFixResult(
@@ -751,101 +634,18 @@ class PRFixer:
                         files_modified=[],
                     )
 
-                # Amend the last commit
-                self.logger.debug("Amending last commit with table fixes")
-                subprocess.run(
-                    ["git", "commit", "--amend", "--no-edit"],
-                    cwd=repo_dir,
-                    check=True,
-                    capture_output=True,
-                    text=True,
+                self._amend_and_push(repo_dir, pr_info.head_ref)
+                await self._post_success_comment(
+                    owner, repo, pr_info, stats, sync_strategy
                 )
-
-                # Force push to update the PR
-                # IMPORTANT: We use --force-with-lease instead of --force for safety in async environments:
-                # - PR authors may push new commits while we're processing
-                # - CI/CD systems may push commits concurrently
-                # - Multiple tool instances could process the same PR simultaneously
-                # --force-with-lease will FAIL if the remote branch has changed since our clone,
-                # preventing us from accidentally overwriting commits. This is critical even though
-                # we clone fresh, because the remote can change AFTER clone but BEFORE push.
-                self.logger.debug(f"Force pushing to {pr_info.head_ref}")
-                try:
-                    subprocess.run(
-                        [
-                            "git",
-                            "push",
-                            "--force-with-lease",
-                            "origin",
-                            pr_info.head_ref,
-                        ],
-                        cwd=repo_dir,
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                    )
-                except subprocess.CalledProcessError as e:
-                    # --force-with-lease failed, likely because remote branch was updated
-                    sanitized_stderr = self._sanitize_message(e.stderr or "")
-                    self.logger.warning(
-                        f"Push rejected - remote branch {pr_info.head_ref} was updated during processing: {sanitized_stderr}"
-                    )
-                    error_msg = "Push rejected: PR branch was updated while processing. Please retry."
-                    raise RuntimeError(error_msg) from e
-
-                # Create a comment on the PR
-                sync_msg = ""
-                if sync_strategy == "rebase":
-                    sync_msg = " and rebased onto the base branch"
-                elif sync_strategy == "merge":
-                    sync_msg = " and merged with the base branch"
-
-                comment_body = (
-                    f"🛠️ **Markdown Table Fixer**\n\n"
-                    f"Fixed {tables_fixed} markdown table(s) in {len(files_modified)} file(s).\n\n"
-                    f"The commit has been amended{sync_msg} with the formatting fixes.\n\n"
-                    f"---\n"
-                    f"*Automatically fixed by [markdown-table-fixer]"
-                    f"(https://github.com/lfreleng-actions/markdown-table-fixer)*"
-                )
-
-                with suppress(Exception):
-                    await self.client.create_comment(
-                        owner, repo, pr_info.number, comment_body
-                    )
-
-                # Build multi-line message with file names and breakdown
-                file_names = [
-                    str(f.relative_to(repo_dir)) for f in files_modified
-                ]
-                message_lines = [
-                    f"Fixed {len(files_modified)} file(s): {', '.join(file_names)}"
-                ]
-
-                if tables_fixed > 0:
-                    message_lines.append(
-                        f"   {tables_fixed} table(s) with alignment/spacing issues"
-                    )
-                if tables_with_md013 > 0:
-                    message_lines.append(
-                        f"   {tables_with_md013} table(s) with MD013 comments"
-                    )
-                if tables_with_md060 > 0:
-                    message_lines.append(
-                        f"   {tables_with_md060} table(s) with MD060 comments"
-                    )
-
-                return GitHubFixResult(
-                    pr_info=pr_info,
-                    success=True,
-                    message="\n".join(message_lines),
-                    files_modified=files_modified,
-                )
+                return self._build_success_result(pr_info, stats, repo_dir)
 
             except subprocess.CalledProcessError as e:
                 sanitized_stderr = self._sanitize_message(e.stderr or "")
                 sanitized_error = self._sanitize_message(str(e))
-                self.logger.error(f"Git operation failed: {sanitized_stderr}")
+                self.logger.error(
+                    f"Git operation failed: {sanitized_stderr}"
+                )
                 return GitHubFixResult(
                     pr_info=pr_info,
                     success=False,
@@ -869,6 +669,318 @@ class PRFixer:
                     error=str(e),
                 )
 
+    def _clone_repository(
+        self, clone_url: str, head_ref: str, repo_dir: Path
+    ) -> None:
+        """Clone the PR head branch into ``repo_dir`` using an auth token."""
+        # Note: Token is embedded in URL for git authentication. We use
+        # capture_output=True and sanitize all error messages to prevent
+        # token leakage in logs.
+        auth_url = clone_url.replace(
+            "https://", f"https://x-access-token:{self.client.token}@"
+        )
+        subprocess.run(
+            [
+                "git",
+                "clone",
+                "--branch",
+                head_ref,
+                auth_url,
+                str(repo_dir),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    async def _maybe_sync_with_base(
+        self,
+        repo_dir: Path,
+        pr_info: PRInfo,
+        sync_strategy: str,
+        conflict_strategy: str,
+    ) -> None:
+        """Sync the branch with its base branch when a strategy is requested."""
+        if sync_strategy not in ["rebase", "merge"]:
+            return
+
+        try:
+            await self._sync_with_base(
+                repo_dir,
+                pr_info.base_ref,
+                pr_info.head_ref,
+                sync_strategy,
+                conflict_strategy,
+            )
+        except subprocess.CalledProcessError as e:
+            sanitized_stderr = self._sanitize_message(e.stderr or "")
+            error_msg = f"Failed to sync with base branch using {sync_strategy}: {sanitized_stderr}"
+            self.logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
+
+    async def _find_markdown_files(
+        self,
+        repo_dir: Path,
+        owner: str,
+        repo: str,
+        pr_info: PRInfo,
+        pr_changes_only: bool,
+    ) -> list[Path]:
+        """Return the markdown files to process for this PR."""
+        if pr_changes_only:
+            # Only process files changed in the PR
+            changed_files = await self.client.get_pr_files(
+                owner, repo, pr_info.number
+            )
+            return [
+                repo_dir / f.get("filename", "")
+                for f in changed_files
+                if f.get("filename", "").endswith(".md")
+                and f.get("status") != "removed"
+                and (repo_dir / f.get("filename", "")).exists()
+            ]
+
+        # Scan all markdown files in the repository
+        scanner = MarkdownFileScanner(repo_dir)
+        return scanner.find_markdown_files()
+
+    async def _fix_markdown_files(
+        self,
+        markdown_files: list[Path],
+        owner: str,
+        repo: str,
+        pr_info: PRInfo,
+    ) -> _TableFixStats:
+        """Fix tables in each markdown file, returning aggregated statistics."""
+        stats = _TableFixStats()
+
+        for md_file in markdown_files:
+            self.logger.debug(f"Processing {md_file}")
+
+            parser = TableParser(md_file)
+            tables = parser.parse_file()
+
+            if not tables:
+                continue
+
+            # Auto-detect max line length from markdownlint config in the repo
+            if self._cached_max_line_length is None:
+                self._cached_max_line_length = (
+                    await self._get_markdownlint_max_line_length(
+                        owner, repo, pr_info.head_ref
+                    )
+                )
+            max_line_length = self._cached_max_line_length
+
+            has_issues = False
+            needs_md013 = False
+
+            for table in tables:
+                has_validation_issues, table_needs_md013 = (
+                    self._check_table_needs_fixes(table, max_line_length)
+                )
+
+                if has_validation_issues:
+                    has_issues = True
+
+                if table_needs_md013:
+                    needs_md013 = True
+
+            # Skip if no issues and no MD013 needed
+            if not has_issues and not needs_md013:
+                continue
+
+            # Fix the file (auto-detect line length from markdownlint config)
+            fixer = FileFixer(md_file)
+            fix_result = fixer.fix_file(tables, dry_run=False)
+
+            # Track results
+            stats.files_modified.append(md_file)
+            stats.tables_fixed += fix_result.tables_fixed
+            stats.tables_with_md013 += fix_result.tables_with_md013
+            stats.tables_with_md060 += fix_result.tables_with_md060
+
+            if fix_result.tables_fixed > 0:
+                self.logger.debug(
+                    f"Fixed {fix_result.tables_fixed} table(s) in {md_file.name}"
+                )
+            if fix_result.tables_with_md013 > 0:
+                self.logger.debug(
+                    f"Added MD013 comments for {fix_result.tables_with_md013} table(s) in {md_file.name}"
+                )
+            if fix_result.tables_with_md060 > 0:
+                self.logger.debug(
+                    f"Added MD060 comments for {fix_result.tables_with_md060} table(s) in {md_file.name}"
+                )
+
+        return stats
+
+    def _build_breakdown_lines(self, stats: _TableFixStats) -> list[str]:
+        """Build the per-fix-type breakdown lines shared by result messages."""
+        lines = []
+        if stats.tables_fixed > 0:
+            lines.append(
+                f"   {stats.tables_fixed} table(s) with alignment/spacing issues"
+            )
+        if stats.tables_with_md013 > 0:
+            lines.append(
+                f"   {stats.tables_with_md013} table(s) with MD013 comments"
+            )
+        if stats.tables_with_md060 > 0:
+            lines.append(
+                f"   {stats.tables_with_md060} table(s) with MD060 comments"
+            )
+        return lines
+
+    def _build_dry_run_result(
+        self, pr_info: PRInfo, stats: _TableFixStats, repo_dir: Path
+    ) -> GitHubFixResult:
+        """Build the result returned in dry-run mode or when nothing changed."""
+        if not stats.files_modified:
+            message = "No markdown table issues found"
+            result_files: list[Path] = []
+        else:
+            file_names = [
+                str(f.relative_to(repo_dir)) for f in stats.files_modified
+            ]
+            # Build multi-line message breaking down each type of fix
+            message_lines = [
+                f"Would fix {len(stats.files_modified)} file(s): {', '.join(file_names)}"
+            ]
+            message_lines.extend(self._build_breakdown_lines(stats))
+            message = "\n".join(message_lines)
+            result_files = stats.files_modified
+        return GitHubFixResult(
+            pr_info=pr_info,
+            success=True,
+            message=message,
+            files_modified=result_files,
+        )
+
+    def _stage_changes(
+        self, repo_dir: Path, config_mode: str, files_modified: list[Path]
+    ) -> bool:
+        """Configure git and stage files, returning True if changes are staged."""
+        git_config = configure_git_identity(
+            repo_dir,
+            mode=config_mode,
+            bot_name="markdown-table-fixer",
+            bot_email="noreply@linuxfoundation.org",
+        )
+        self.logger.debug(f"Git config applied: {git_config}")
+
+        # Stage the changes
+        for file_path in files_modified:
+            rel_path = file_path.relative_to(repo_dir)
+            subprocess.run(
+                ["git", "add", str(rel_path)],
+                cwd=repo_dir,
+                check=True,
+                capture_output=True,
+            )
+
+        # Check if there are actually changes to commit
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--quiet"],
+            check=False,
+            cwd=repo_dir,
+            capture_output=True,
+        )
+        return result.returncode != 0
+
+    def _amend_and_push(self, repo_dir: Path, head_ref: str) -> None:
+        """Amend the last commit and force-push it to update the PR."""
+        # Amend the last commit
+        self.logger.debug("Amending last commit with table fixes")
+        subprocess.run(
+            ["git", "commit", "--amend", "--no-edit"],
+            cwd=repo_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        # Force push to update the PR
+        # IMPORTANT: We use --force-with-lease instead of --force for safety in async environments:
+        # - PR authors may push new commits while we're processing
+        # - CI/CD systems may push commits concurrently
+        # - Multiple tool instances could process the same PR simultaneously
+        # --force-with-lease will FAIL if the remote branch has changed since our clone,
+        # preventing us from accidentally overwriting commits. This is critical even though
+        # we clone fresh, because the remote can change AFTER clone but BEFORE push.
+        self.logger.debug(f"Force pushing to {head_ref}")
+        try:
+            subprocess.run(
+                [
+                    "git",
+                    "push",
+                    "--force-with-lease",
+                    "origin",
+                    head_ref,
+                ],
+                cwd=repo_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError as e:
+            # --force-with-lease failed, likely because remote branch was updated
+            sanitized_stderr = self._sanitize_message(e.stderr or "")
+            self.logger.warning(
+                f"Push rejected - remote branch {head_ref} was updated during processing: {sanitized_stderr}"
+            )
+            error_msg = "Push rejected: PR branch was updated while processing. Please retry."
+            raise RuntimeError(error_msg) from e
+
+    async def _post_success_comment(
+        self,
+        owner: str,
+        repo: str,
+        pr_info: PRInfo,
+        stats: _TableFixStats,
+        sync_strategy: str,
+    ) -> None:
+        """Post a summary comment on the PR (best effort)."""
+        sync_msg = ""
+        if sync_strategy == "rebase":
+            sync_msg = " and rebased onto the base branch"
+        elif sync_strategy == "merge":
+            sync_msg = " and merged with the base branch"
+
+        comment_body = (
+            f"🛠️ **Markdown Table Fixer**\n\n"
+            f"Fixed {stats.tables_fixed} markdown table(s) in {len(stats.files_modified)} file(s).\n\n"
+            f"The commit has been amended{sync_msg} with the formatting fixes.\n\n"
+            f"---\n"
+            f"*Automatically fixed by [markdown-table-fixer]"
+            f"(https://github.com/lfreleng-actions/markdown-table-fixer)*"
+        )
+
+        with suppress(Exception):
+            await self.client.create_comment(
+                owner, repo, pr_info.number, comment_body
+            )
+
+    def _build_success_result(
+        self, pr_info: PRInfo, stats: _TableFixStats, repo_dir: Path
+    ) -> GitHubFixResult:
+        """Build the result returned after a successful push."""
+        # Build multi-line message with file names and breakdown
+        file_names = [
+            str(f.relative_to(repo_dir)) for f in stats.files_modified
+        ]
+        message_lines = [
+            f"Fixed {len(stats.files_modified)} file(s): {', '.join(file_names)}"
+        ]
+        message_lines.extend(self._build_breakdown_lines(stats))
+
+        return GitHubFixResult(
+            pr_info=pr_info,
+            success=True,
+            message="\n".join(message_lines),
+            files_modified=stats.files_modified,
+        )
+
     async def _sync_with_base(
         self,
         repo_dir: Path,
@@ -889,7 +1001,6 @@ class PRFixer:
         Raises:
             subprocess.CalledProcessError: If sync operation fails
         """
-        # Fetch the base branch
         self.logger.debug(f"Fetching origin/{base_ref}")
         subprocess.run(
             ["git", "fetch", "origin", base_ref],
@@ -1043,6 +1154,230 @@ class PRFixer:
                 error=result.get("error"),
             )
 
+    async def _resolve_pr_markdown_files(
+        self,
+        owner: str,
+        repo: str,
+        pr_number: Any,
+        head_sha: Any,
+        *,
+        pr_changes_only: bool,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+        """Return (markdown_files, early_result).
+
+        early_result is a ready-to-return error dict when fetching the
+        repository tree fails; otherwise it is None.
+        """
+        if pr_changes_only:
+            self.logger.debug(f"Fetching changed files for PR #{pr_number}")
+            files = await self.client.get_pr_files(owner, repo, pr_number)
+            self.logger.debug(f"Found {len(files)} changed files in PR")
+            markdown_files = [
+                f
+                for f in files
+                if f.get("filename", "").endswith(".md")
+                and f.get("status") != "removed"
+            ]
+            return markdown_files, None
+
+        self.logger.debug("Fetching all markdown files from repository")
+        try:
+            tree_response = await self.client._request(
+                "GET",
+                f"/repos/{owner}/{repo}/git/trees/{head_sha}",
+                params={"recursive": "1"},
+            )
+            tree = (
+                tree_response.get("tree", [])
+                if isinstance(tree_response, dict)
+                else []
+            )
+            markdown_files = [
+                {
+                    "filename": item.get("path", ""),
+                    "sha": item.get("sha", ""),
+                }
+                for item in tree
+                if item.get("type") == "blob"
+                and item.get("path", "").endswith(".md")
+            ]
+            self.logger.debug(
+                f"Found {len(markdown_files)} markdown files in repository"
+            )
+            return markdown_files, None
+        except Exception as e:
+            self.logger.error(f"Failed to fetch repository tree: {e}")
+            return [], {
+                "success": False,
+                "error": f"Failed to fetch repository files: {e}",
+                "files_fixed": 0,
+                "tables_fixed": 0,
+            }
+
+    async def _collect_file_update(
+        self,
+        owner: str,
+        repo: str,
+        branch: Any,
+        file_data: dict[str, Any],
+    ) -> tuple[str, str, int] | None:
+        """Analyze one markdown file and return its update.
+
+        Returns (filename, fixed_content, fixes_applied) when the file needs
+        changes, or None when it has no name/SHA, no tables, no issues, or
+        when fixing produced no content change.
+        """
+        filename = file_data.get("filename", "")
+        file_sha = file_data.get("sha")
+
+        self.logger.debug(f"Processing file: {filename}")
+
+        if not filename or not file_sha:
+            self.logger.warning("Skipping file with missing name or SHA")
+            return None
+
+        temp_path: Path | None = None
+        try:
+            self.logger.debug(f"Fetching content for {filename}")
+            content = await self.client.get_file_content(
+                owner, repo, filename, branch
+            )
+            self.logger.debug(f"Content length: {len(content)} bytes")
+
+            lines = content.splitlines(keepends=True)
+            self.logger.debug(f"File has {len(lines)} lines")
+
+            # Create temp file to allow validation and filtering
+            temp_path = _sanitized_temp_path(filename)
+            temp_path.write_text(content, encoding="utf-8")
+
+            parser = TableParser(temp_path)
+            tables = parser.parse_file()
+            self.logger.debug(f"Found {len(tables)} tables in {filename}")
+
+            if not tables:
+                self.logger.debug(f"No tables found in {filename}")
+                return None
+
+            # Fetch max line length from repository's markdownlint config
+            if self._cached_max_line_length is None:
+                self._cached_max_line_length = (
+                    await self._get_markdownlint_max_line_length(
+                        owner, repo, branch
+                    )
+                )
+            max_line_length = self._cached_max_line_length
+
+            has_issues = False
+            needs_md013 = False
+            fixes_applied = 0
+
+            for table in tables:
+                has_validation_issues, table_needs_md013 = (
+                    self._check_table_needs_fixes(table, max_line_length)
+                )
+                self.logger.debug(
+                    f"Table at line {table.start_line}: validation_issues={has_validation_issues}, needs_md013={table_needs_md013}"
+                )
+                if has_validation_issues:
+                    has_issues = True
+                    fixes_applied += 1
+                if table_needs_md013:
+                    needs_md013 = True
+
+            if not has_issues and not needs_md013:
+                self.logger.debug(f"No issues found in {filename}")
+                return None
+
+            if needs_md013 and not has_issues:
+                self.logger.debug(
+                    f"Tables in {filename} need MD013 comments (line length > {max_line_length})"
+                )
+
+            self.logger.debug(f"Found issues in {filename}, applying fixes")
+
+            from .table_fixer import FileFixer
+
+            # Pass max_line_length explicitly since temp file can't find
+            # .markdownlintrc
+            file_fixer = FileFixer(temp_path, max_line_length=max_line_length)
+            file_fixer.fix_file(tables, dry_run=False)
+
+            fixed_content = temp_path.read_text(encoding="utf-8")
+
+            if fixed_content != content:
+                self.logger.debug(f"Content changed for {filename}")
+                return filename, fixed_content, fixes_applied
+
+            self.logger.debug(f"No content changes for {filename}")
+            return None
+        except Exception:
+            # Continue with other files if one fails
+            return None
+        finally:
+            # Always remove the temp file, regardless of which path we
+            # return through, so repeated scans don't clutter /tmp.
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
+
+    async def _apply_batch_commit(
+        self,
+        owner: str,
+        repo: str,
+        branch: Any,
+        pr_number: Any,
+        updates: _PRTableUpdates,
+        *,
+        add_dco: bool,
+    ) -> dict[str, Any] | None:
+        """Commit collected updates as one commit.
+
+        Returns an error dict on failure, or None on success.
+        """
+        self.logger.debug(
+            f"Applying batch update: {len(updates.batch_updates)} file(s) in single commit"
+        )
+        try:
+            commit_message = (
+                f"Fix markdown table formatting\n\n"
+                f"Automatically fixed {updates.tables_fixed} table(s) across "
+                f"{updates.files_fixed} file(s) in PR #{pr_number}\n\n"
+                f"Files updated:\n"
+            )
+            for file_info in updates.fixed_files:
+                commit_message += (
+                    f"- {file_info['filename']}: {file_info['tables']} table(s)\n"
+                )
+
+            author_name = "markdown-table-fixer"
+            author_email = "markdown-table-fixer@linuxfoundation.org"
+
+            # Add DCO sign-off if requested
+            if add_dco:
+                commit_message += (
+                    f"\nSigned-off-by: {author_name} <{author_email}>\n"
+                )
+
+            await self.client.batch_update_files(
+                owner,
+                repo,
+                branch,
+                updates.batch_updates,
+                commit_message,
+                author_name=author_name,
+                author_email=author_email,
+            )
+            self.logger.debug("Successfully applied batch update")
+            return None
+        except Exception as e:
+            self.logger.error(f"Failed to apply batch update: {e}")
+            return {
+                "success": False,
+                "error": f"Failed to apply batch update: {e}",
+                "files_fixed": 0,
+                "tables_fixed": 0,
+            }
+
     async def fix_pr_tables(
         self,
         owner: str,
@@ -1069,8 +1404,9 @@ class PRFixer:
             Dictionary with fix results
         """
         pr_number = pr.get("number")
-        branch = pr.get("head", {}).get("ref")
-        head_sha = pr.get("head", {}).get("sha")
+        head = pr.get("head", {})
+        branch = head.get("ref")
+        head_sha = head.get("sha")
 
         self.logger.debug(f"PR #{pr_number}: branch={branch}, sha={head_sha}")
 
@@ -1083,55 +1419,11 @@ class PRFixer:
                 "tables_fixed": 0,
             }
 
-        # Get markdown files - either from PR changes only or all in repo
-        if pr_changes_only:
-            # Only process files changed in the PR
-            self.logger.debug(f"Fetching changed files for PR #{pr_number}")
-            files = await self.client.get_pr_files(owner, repo, pr_number)
-            self.logger.debug(f"Found {len(files)} changed files in PR")
-            markdown_files = [
-                f
-                for f in files
-                if f.get("filename", "").endswith(".md")
-                and f.get("status") != "removed"
-            ]
-        else:
-            # Process all markdown files in the repository
-            self.logger.debug("Fetching all markdown files from repository")
-            try:
-                # Get all files from the repository at the PR branch
-                tree_response = await self.client._request(
-                    "GET",
-                    f"/repos/{owner}/{repo}/git/trees/{head_sha}",
-                    params={"recursive": "1"},
-                )
-                tree = (
-                    tree_response.get("tree", [])
-                    if isinstance(tree_response, dict)
-                    else []
-                )
-
-                # Filter for markdown files
-                markdown_files = [
-                    {
-                        "filename": item.get("path", ""),
-                        "sha": item.get("sha", ""),
-                    }
-                    for item in tree
-                    if item.get("type") == "blob"
-                    and item.get("path", "").endswith(".md")
-                ]
-                self.logger.debug(
-                    f"Found {len(markdown_files)} markdown files in repository"
-                )
-            except Exception as e:
-                self.logger.error(f"Failed to fetch repository tree: {e}")
-                return {
-                    "success": False,
-                    "error": f"Failed to fetch repository files: {e}",
-                    "files_fixed": 0,
-                    "tables_fixed": 0,
-                }
+        markdown_files, early_result = await self._resolve_pr_markdown_files(
+            owner, repo, pr_number, head_sha, pr_changes_only=pr_changes_only
+        )
+        if early_result is not None:
+            return early_result
 
         self.logger.debug(
             f"Found {len(markdown_files)} markdown files to process"
@@ -1148,182 +1440,42 @@ class PRFixer:
                 "tables_fixed": 0,
             }
 
-        files_fixed = 0
-        tables_fixed = 0
-        fixed_files_list = []
-        batch_updates = []  # Collect all file updates for single commit
-
         # First pass: analyze all files and collect changes
+        updates = _PRTableUpdates()
         for file_data in markdown_files:
-            filename = file_data.get("filename", "")
-            file_sha = file_data.get("sha")
-
-            self.logger.debug(f"Processing file: {filename}")
-
-            if not filename or not file_sha:
-                self.logger.warning("Skipping file with missing name or SHA")
+            result = await self._collect_file_update(
+                owner, repo, branch, file_data
+            )
+            if result is None:
                 continue
-
-            try:
-                # Get current file content
-                self.logger.debug(f"Fetching content for {filename}")
-                content = await self.client.get_file_content(
-                    owner, repo, filename, branch
-                )
-                self.logger.debug(f"Content length: {len(content)} bytes")
-
-                # Parse and fix tables by splitting content into lines
-                lines = content.splitlines(keepends=True)
-                self.logger.debug(f"File has {len(lines)} lines")
-
-                # Create temp file to allow validation and filtering
-                temp_path = Path(f"/tmp/{filename}")
-                temp_path.parent.mkdir(parents=True, exist_ok=True)
-                temp_path.write_text(content, encoding="utf-8")
-
-                parser = TableParser(temp_path)
-                tables = parser.parse_file()
-
-                self.logger.debug(f"Found {len(tables)} tables in {filename}")
-
-                if not tables:
-                    self.logger.debug(f"No tables found in {filename}")
-                    continue
-
-                # Check if any tables have issues or need MD013 comments
-                # Fetch max line length from repository's markdownlint config
-                if self._cached_max_line_length is None:
-                    self._cached_max_line_length = (
-                        await self._get_markdownlint_max_line_length(
-                            owner, repo, branch
-                        )
-                    )
-                max_line_length = self._cached_max_line_length
-
-                has_issues = False
-                needs_md013 = False
-                fixes_applied = 0
-
-                for table in tables:
-                    has_validation_issues, table_needs_md013 = (
-                        self._check_table_needs_fixes(table, max_line_length)
-                    )
-
-                    self.logger.debug(
-                        f"Table at line {table.start_line}: validation_issues={has_validation_issues}, needs_md013={table_needs_md013}"
-                    )
-
-                    if has_validation_issues:
-                        has_issues = True
-                        fixes_applied += 1
-
-                    if table_needs_md013:
-                        needs_md013 = True
-
-                # Skip if no issues and no MD013 needed
-                if not has_issues and not needs_md013:
-                    self.logger.debug(f"No issues found in {filename}")
-                    continue
-
-                if needs_md013 and not has_issues:
-                    self.logger.debug(
-                        f"Tables in {filename} need MD013 comments (line length > {max_line_length})"
-                    )
-
-                self.logger.debug(f"Found issues in {filename}, applying fixes")
-
-                # Use FileFixer which handles both table formatting and MD013 comments
-                from .table_fixer import FileFixer
-
-                # Temp file already created above during parsing
-                # Pass max_line_length explicitly since temp file can't find .markdownlintrc
-                file_fixer = FileFixer(
-                    temp_path, max_line_length=max_line_length
-                )
-                file_fixer.fix_file(tables, dry_run=False)
-
-                # Read back the fixed content
-                fixed_content = temp_path.read_text(encoding="utf-8")
-
-                # Clean up temp file
-                temp_path.unlink()
-
-                # Only collect if content changed
-                if fixed_content != content:
-                    self.logger.debug(f"Content changed for {filename}")
-                    batch_updates.append(
-                        {
-                            "path": filename,
-                            "content": fixed_content,
-                        }
-                    )
-                    files_fixed += 1
-                    tables_fixed += fixes_applied
-                    fixed_files_list.append(
-                        {"filename": filename, "tables": fixes_applied}
-                    )
-                else:
-                    self.logger.debug(f"No content changes for {filename}")
-
-            except Exception:
-                # Continue with other files if one fails
-                continue
+            filename, fixed_content, fixes_applied = result
+            updates.batch_updates.append(
+                {"path": filename, "content": fixed_content}
+            )
+            updates.files_fixed += 1
+            updates.tables_fixed += fixes_applied
+            updates.fixed_files.append(
+                {"filename": filename, "tables": fixes_applied}
+            )
 
         # Second pass: apply all updates in a single batch commit
-        if batch_updates and not dry_run:
-            self.logger.debug(
-                f"Applying batch update: {len(batch_updates)} file(s) in single commit"
+        if updates.batch_updates and not dry_run:
+            error_result = await self._apply_batch_commit(
+                owner, repo, branch, pr_number, updates, add_dco=add_dco
             )
-            try:
-                commit_message = (
-                    f"Fix markdown table formatting\n\n"
-                    f"Automatically fixed {tables_fixed} table(s) across "
-                    f"{files_fixed} file(s) in PR #{pr_number}\n\n"
-                    f"Files updated:\n"
-                )
-                for file_info in fixed_files_list:
-                    filename = file_info["filename"]
-                    table_count = file_info["tables"]
-                    commit_message += f"- {filename}: {table_count} table(s)\n"
-
-                # Set up author identity for commit
-                author_name = "markdown-table-fixer"
-                author_email = "markdown-table-fixer@linuxfoundation.org"
-
-                # Add DCO sign-off if requested
-                if add_dco:
-                    commit_message += (
-                        f"\nSigned-off-by: {author_name} <{author_email}>\n"
-                    )
-
-                await self.client.batch_update_files(
-                    owner,
-                    repo,
-                    branch,
-                    batch_updates,
-                    commit_message,
-                    author_name=author_name,
-                    author_email=author_email,
-                )
-                self.logger.debug("Successfully applied batch update")
-            except Exception as e:
-                self.logger.error(f"Failed to apply batch update: {e}")
-                return {
-                    "success": False,
-                    "error": f"Failed to apply batch update: {e}",
-                    "files_fixed": 0,
-                    "tables_fixed": 0,
-                }
+            if error_result is not None:
+                return error_result
 
         self.logger.debug(
-            f"PR fix complete: {files_fixed} files, {tables_fixed} tables"
+            f"PR fix complete: {updates.files_fixed} files, "
+            f"{updates.tables_fixed} tables"
         )
 
         # Create a comment if requested and fixes were made
-        if create_comment and files_fixed > 0 and not dry_run:
+        if create_comment and updates.files_fixed > 0 and not dry_run:
             self.logger.debug("Creating PR comment")
             comment_body = self._generate_comment(
-                files_fixed, tables_fixed, fixed_files_list
+                updates.files_fixed, updates.tables_fixed, updates.fixed_files
             )
             # Don't fail if comment creation fails
             with suppress(Exception):
@@ -1333,9 +1485,9 @@ class PRFixer:
 
         return {
             "success": True,
-            "files_fixed": files_fixed,
-            "tables_fixed": tables_fixed,
-            "fixed_files": fixed_files_list,
+            "files_fixed": updates.files_fixed,
+            "tables_fixed": updates.tables_fixed,
+            "fixed_files": updates.fixed_files,
             "dry_run": dry_run,
         }
 

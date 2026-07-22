@@ -87,12 +87,10 @@ class RuleDisabler:
         current_state = DisabledRulesState()
 
         for line_num, line in enumerate(lines, start=1):
-            # Check for disable comments
             disabled_rules = self._parse_markdownlint_comment(line, "disable")
             if disabled_rules:
                 current_state.disable_rules(disabled_rules)
 
-            # Check for enable comments
             enabled_rules = self._parse_markdownlint_comment(line, "enable")
             if enabled_rules:
                 current_state.enable_rules(enabled_rules)
@@ -160,7 +158,6 @@ class RuleDisabler:
         if not match:
             return set()
 
-        # Extract the rules part and split by whitespace
         rules_text = match.group(1)
         # Match MD followed by digits, using word boundaries to avoid false matches
         rule_pattern = r"\bMD\d+\b"
@@ -184,7 +181,6 @@ def filter_violations_by_disabled_rules(
     if not violations:
         return violations
 
-    # Create rule disabler and parse file
     disabler = RuleDisabler(file_path)
     disabler.parse_file()
 

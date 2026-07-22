@@ -40,7 +40,6 @@ class BlockedPRScanner:
         self.max_repo_tasks = max_repo_tasks
         self.logger = logging.getLogger(__name__)
 
-        # Initialize the dependamerge GitHubService
         self.service = GitHubService(
             token=token,
             progress_tracker=progress_tracker,
@@ -211,6 +210,5 @@ class BlockedPRScanner:
         if result is None:
             return False, []
 
-        # Extract reason descriptions
         reasons = [reason.description for reason in result.reasons]
         return True, reasons

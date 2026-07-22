@@ -74,7 +74,6 @@ class TableParser:
                     table_start = line_num
                     table_rows = []
 
-                # Parse the row
                 row = self._parse_row(line, line_num)
                 table_rows.append(row)
             # Not a table row
@@ -164,7 +163,6 @@ class TableParser:
         cells: list[TableCell] = []
         stripped = line.strip()
 
-        # Remove leading and trailing pipes
         if stripped.startswith("|"):
             stripped = stripped[1:]
         if stripped.endswith("|"):

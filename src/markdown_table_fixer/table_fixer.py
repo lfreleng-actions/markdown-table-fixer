@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import yaml
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 from .models import FileFixResult, MarkdownTable, TableFix, TableRow
@@ -84,7 +85,6 @@ class TableFixer:
         # Generate fixed table content
         fixed_lines = self._generate_fixed_table()
 
-        # Get original content
         original_lines = [row.raw_line for row in self.table.rows]
         original_content = "\n".join(original_lines)
         fixed_content = "\n".join(fixed_lines)
@@ -137,7 +137,6 @@ class TableFixer:
         if not self.table.rows:
             return []
 
-        # Get max column count
         max_cols = max(len(row.cells) for row in self.table.rows)
 
         widths: list[int] = []
@@ -310,16 +309,34 @@ class FileFixer:
 
         return "\n".join(lines)
 
-    def _check_rule_enabled(self, rule_name: str) -> bool:
-        """Check if a markdownlint rule is enabled in config.
+    def _load_markdownlint_config(
+        self, config_path: Path, config_name: str
+    ) -> object | None:
+        """Load a markdownlint config file into a parsed object.
 
-        Args:
-            rule_name: Name of the rule (e.g., "MD013", "MD060")
-
-        Returns:
-            True if rule checking is enabled, False otherwise
+        Returns the parsed config, or None if the extension is unsupported.
         """
-        # Look for markdownlint config files in parent directories
+        with open(config_path, encoding="utf-8") as f:
+            if config_name.endswith((".yaml", ".yml")):
+                yaml_config: object = yaml.safe_load(f)
+                # yaml.safe_load returns None for empty files
+                return yaml_config if yaml_config is not None else {}
+            if config_name.endswith((".json", ".jsonc", "rc")):
+                content = f.read()
+                if config_name.endswith(".jsonc"):
+                    content = self._remove_jsonc_comments(content)
+                json_config: object = json.loads(content)
+                return json_config
+        return None
+
+    def _iter_markdownlint_configs(self) -> Iterator[object]:
+        """Yield parsed markdownlint configs, walking up from the file.
+
+        Config files are visited in ``config_names`` order within each
+        directory, then the search moves up to the parent directory (up to
+        five levels). Files that are missing, unsupported, or unreadable are
+        skipped so callers only see successfully parsed configs.
+        """
         current_dir = self.file_path.parent
         config_names = [
             ".markdownlint.json",
@@ -333,39 +350,43 @@ class FileFixer:
         for _ in range(5):
             for config_name in config_names:
                 config_path = current_dir / config_name
-                if config_path.exists():
-                    try:
-                        with open(config_path, encoding="utf-8") as f:
-                            if config_name.endswith((".yaml", ".yml")):
-                                config = yaml.safe_load(f)
-                                # yaml.safe_load returns None for empty files
-                                if config is None:
-                                    config = {}
-                            elif config_name.endswith(
-                                (".json", ".jsonc", "rc")
-                            ):
-                                content = f.read()
-                                if config_name.endswith(".jsonc"):
-                                    content = self._remove_jsonc_comments(
-                                        content
-                                    )
-                                config = json.loads(content)
-                            else:
-                                continue
-
-                            # Check if rule is explicitly disabled
-                            if rule_name in config:
-                                return config[rule_name] is not False
-                            # If not specified, assume enabled (markdownlint default)
-                            return True
-                    except (json.JSONDecodeError, yaml.YAMLError, OSError):
-                        # If config can't be read, assume rule is enabled
-                        pass
+                if not config_path.exists():
+                    continue
+                try:
+                    config = self._load_markdownlint_config(
+                        config_path, config_name
+                    )
+                except (json.JSONDecodeError, yaml.YAMLError, OSError):
+                    # If config can't be read, keep searching
+                    continue
+                if config is not None:
+                    yield config
 
             # Move up one directory
             if current_dir.parent == current_dir:
                 break  # Reached root
             current_dir = current_dir.parent
+
+    def _check_rule_enabled(self, rule_name: str) -> bool:
+        """Check if a markdownlint rule is enabled in config.
+
+        Args:
+            rule_name: Name of the rule (e.g., "MD013", "MD060")
+
+        Returns:
+            True if rule checking is enabled, False otherwise
+        """
+        # The first readable dict config found decides the outcome.
+        # Skip configs that don't parse to a mapping (e.g. a YAML list)
+        # so a usable dict config higher up the tree is not hidden.
+        for config in self._iter_markdownlint_configs():
+            if not isinstance(config, dict):
+                continue
+            if rule_name in config:
+                # Explicitly disabled only when set to ``false``
+                return config[rule_name] is not False
+            # If not specified, assume enabled (markdownlint default)
+            return True
 
         # No config found, assume rule is enabled by default
         return True
@@ -378,64 +399,27 @@ class FileFixer:
         """
         return self._check_rule_enabled("MD013")
 
+    def _extract_md013_line_length(self, config: object) -> int | None:
+        """Return the MD013 line_length from a config dict, if configured."""
+        if not isinstance(config, dict):
+            return None
+        md013_config = config.get("MD013")
+        if isinstance(md013_config, dict) and "line_length" in md013_config:
+            line_length = md013_config["line_length"]
+            if isinstance(line_length, int):
+                return line_length
+        return None
+
     def _get_md013_line_length(self) -> int:
         """Get MD013 line_length from markdownlint config.
 
         Returns:
             Configured line length, or 80 if not configured
         """
-        # Look for markdownlint config files in parent directories
-        current_dir = self.file_path.parent
-        config_names = [
-            ".markdownlint.json",
-            ".markdownlint.jsonc",
-            ".markdownlint.yaml",
-            ".markdownlint.yml",
-            ".markdownlintrc",
-        ]
-
-        # Search up to 5 levels up
-        for _ in range(5):
-            for config_name in config_names:
-                config_path = current_dir / config_name
-                if config_path.exists():
-                    try:
-                        with open(config_path, encoding="utf-8") as f:
-                            if config_name.endswith((".yaml", ".yml")):
-                                config = yaml.safe_load(f)
-                                # yaml.safe_load returns None for empty files
-                                if config is None:
-                                    config = {}
-                            elif config_name.endswith(
-                                (".json", ".jsonc", "rc")
-                            ):
-                                content = f.read()
-                                if config_name.endswith(".jsonc"):
-                                    content = self._remove_jsonc_comments(
-                                        content
-                                    )
-                                config = json.loads(content)
-                            else:
-                                continue
-
-                            # Check if MD013 has line_length configured
-                            if "MD013" in config:
-                                md013_config = config["MD013"]
-                                if (
-                                    isinstance(md013_config, dict)
-                                    and "line_length" in md013_config
-                                ):
-                                    line_length = md013_config["line_length"]
-                                    if isinstance(line_length, int):
-                                        return line_length
-                    except (json.JSONDecodeError, yaml.YAMLError, OSError):
-                        # If config can't be read, use default
-                        pass
-
-            # Move up one directory
-            if current_dir.parent == current_dir:
-                break  # Reached root
-            current_dir = current_dir.parent
+        for config in self._iter_markdownlint_configs():
+            line_length = self._extract_md013_line_length(config)
+            if line_length is not None:
+                return line_length
 
         # No config found or line_length not specified, return default
         return 80
@@ -487,7 +471,6 @@ class FileFixer:
         if not match:
             return set()
 
-        # Extract the rules part and split by whitespace
         rules_text = match.group(1)
         # Match MD followed by digits, using word boundaries to avoid false matches
         rule_pattern = r"\bMD\d+\b"
@@ -591,86 +574,12 @@ class FileFixer:
         with open(self.file_path, encoding="utf-8") as f:
             lines = f.readlines()
 
-        # Build a map of all tables that need MD013 comments
-        tables_needing_md013: dict[int, tuple[MarkdownTable, list[str]]] = {}
-
-        # Build a map of tables needing MD060 comments (tables with emojis)
-        tables_needing_md060: dict[int, tuple[MarkdownTable, list[str]]] = {}
-
-        # Check all tables for line length violations and emoji issues
-        for table in all_tables:
-            # Get the table content (either fixed or original)
-            table_lines = []
-            fix_for_table = None
-            for fix in fixes:
-                if (
-                    fix.start_line == table.start_line
-                    and fix.end_line == table.end_line
-                ):
-                    fix_for_table = fix
-                    table_lines = fix.fixed_content.split("\n")
-                    break
-
-            # If no fix, use original lines
-            if not fix_for_table:
-                table_lines = [row.raw_line for row in table.rows]
-
-            # Check if any line exceeds max_line_length
-            max_len = (
-                max(len(line.rstrip()) for line in table_lines)
-                if table_lines
-                else 0
-            )
-            needs_md013 = max_len > self.max_line_length
-
-            if needs_md013:
-                tables_needing_md013[table.start_line] = (table, table_lines)
-
-            # Check if table has emojis (causes MD060 violations)
-            if self._md060_enabled and self._table_has_emojis(table):
-                tables_needing_md060[table.start_line] = (table, table_lines)
-
-        # Create a unified list of all table modifications to apply
-        # This includes fixes, MD013-only tables, and MD060-only tables
-        all_modifications: list[tuple[int, int, list[str], bool, bool]] = []
-
-        # Add fixes to modifications list
-        for fix in fixes:
-            fixed_lines = fix.fixed_content.split("\n")
-            needs_md013 = fix.start_line in tables_needing_md013
-            needs_md060 = fix.start_line in tables_needing_md060
-            all_modifications.append(
-                (
-                    fix.start_line,
-                    fix.end_line,
-                    fixed_lines,
-                    needs_md013,
-                    needs_md060,
-                )
-            )
-
-        # Add tables that need MD013 but have no fixes
-        for start_line, (table, table_lines) in tables_needing_md013.items():
-            # Check if already in fixes
-            if not any(mod[0] == start_line for mod in all_modifications):
-                needs_md060 = start_line in tables_needing_md060
-                all_modifications.append(
-                    (
-                        table.start_line,
-                        table.end_line,
-                        table_lines,
-                        True,
-                        needs_md060,
-                    )
-                )
-
-        # Add tables that need MD060 but have no fixes or MD013
-        for start_line, (table, table_lines) in tables_needing_md060.items():
-            # Check if already in fixes or MD013 list
-            if not any(mod[0] == start_line for mod in all_modifications):
-                all_modifications.append(
-                    (table.start_line, table.end_line, table_lines, False, True)
-                )
+        tables_needing_md013, tables_needing_md060 = self._categorize_tables(
+            fixes, all_tables
+        )
+        all_modifications = self._build_modifications(
+            fixes, tables_needing_md013, tables_needing_md060
+        )
 
         # Apply all modifications in reverse order to maintain line numbers
         # (only if there are modifications to apply)
@@ -699,59 +608,167 @@ class FileFixer:
 
             # Add markdownlint comments if needed
             if disable_rules:
-                disable_comment = " ".join(disable_rules)
-                # Check if disable comment already exists within 3 lines before the table
-                has_disable = False
-                check_start = max(0, start_idx - 3)
-                for i in range(check_start, start_idx):
-                    found_rules = self._parse_markdownlint_comment(
-                        lines[i], "disable"
-                    )
-                    if all(rule in found_rules for rule in disable_rules):
-                        has_disable = True
-                        break
-
-                # Check if enable comment already exists within 3 lines after the table
-                has_enable = False
-                check_end = min(len(lines), end_idx + 3)
-                for i in range(end_idx, check_end):
-                    found_rules = self._parse_markdownlint_comment(
-                        lines[i], "enable"
-                    )
-                    if all(rule in found_rules for rule in disable_rules):
-                        has_enable = True
-                        break
-
-                # Add disable comment if not present
-                if not has_disable:
-                    # Check for blank line before table
-                    if start_idx > 0 and lines[start_idx - 1].strip():
-                        # No blank line, add both blank line and comment
-                        new_lines.insert(0, "\n")
-                        new_lines.insert(
-                            1,
-                            f"<!-- markdownlint-disable {disable_comment} -->\n",
-                        )
-                        new_lines.insert(2, "\n")
-                    else:
-                        # Blank line exists, just add comment
-                        new_lines.insert(
-                            0,
-                            f"<!-- markdownlint-disable {disable_comment} -->\n",
-                        )
-                        new_lines.insert(1, "\n")
-
-                # Add enable comment if not present
-                if not has_enable:
-                    # Always add blank line and enable comment
-                    new_lines.append("\n")
-                    new_lines.append(
-                        f"<!-- markdownlint-enable {disable_comment} -->\n"
-                    )
+                self._insert_markdownlint_comments(
+                    new_lines, lines, start_idx, end_idx, disable_rules
+                )
 
             # Replace the section
             lines[start_idx:end_idx] = new_lines
 
-        # Write back to file
         with open(self.file_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
+
+    def _categorize_tables(
+        self,
+        fixes: list[TableFix],
+        all_tables: list[MarkdownTable],
+    ) -> tuple[
+        dict[int, tuple[MarkdownTable, list[str]]],
+        dict[int, tuple[MarkdownTable, list[str]]],
+    ]:
+        """Find tables needing MD013 (line length) and MD060 (emoji) comments.
+
+        Returns a ``(tables_needing_md013, tables_needing_md060)`` tuple, each
+        keyed by the table's start line.
+        """
+        tables_needing_md013: dict[int, tuple[MarkdownTable, list[str]]] = {}
+        tables_needing_md060: dict[int, tuple[MarkdownTable, list[str]]] = {}
+
+        for table in all_tables:
+            # Get the table content (either fixed or original)
+            table_lines: list[str] = []
+            fix_for_table = None
+            for fix in fixes:
+                if (
+                    fix.start_line == table.start_line
+                    and fix.end_line == table.end_line
+                ):
+                    fix_for_table = fix
+                    table_lines = fix.fixed_content.split("\n")
+                    break
+
+            # If no fix, use original lines
+            if not fix_for_table:
+                table_lines = [row.raw_line for row in table.rows]
+
+            # Check if any line exceeds max_line_length
+            max_len = (
+                max(len(line.rstrip()) for line in table_lines)
+                if table_lines
+                else 0
+            )
+            if max_len > self.max_line_length:
+                tables_needing_md013[table.start_line] = (table, table_lines)
+
+            # Check if table has emojis (causes MD060 violations)
+            if self._md060_enabled and self._table_has_emojis(table):
+                tables_needing_md060[table.start_line] = (table, table_lines)
+
+        return tables_needing_md013, tables_needing_md060
+
+    def _build_modifications(
+        self,
+        fixes: list[TableFix],
+        tables_needing_md013: dict[int, tuple[MarkdownTable, list[str]]],
+        tables_needing_md060: dict[int, tuple[MarkdownTable, list[str]]],
+    ) -> list[tuple[int, int, list[str], bool, bool]]:
+        """Combine fixes and comment-only tables into one modification list."""
+        # Each entry is (start_line, end_line, lines, needs_md013, needs_md060)
+        all_modifications: list[tuple[int, int, list[str], bool, bool]] = []
+
+        # Add fixes to modifications list
+        for fix in fixes:
+            fixed_lines = fix.fixed_content.split("\n")
+            all_modifications.append(
+                (
+                    fix.start_line,
+                    fix.end_line,
+                    fixed_lines,
+                    fix.start_line in tables_needing_md013,
+                    fix.start_line in tables_needing_md060,
+                )
+            )
+
+        # Add tables that need MD013 but have no fixes
+        for start_line, (table, table_lines) in tables_needing_md013.items():
+            # Check if already in fixes
+            if not any(mod[0] == start_line for mod in all_modifications):
+                all_modifications.append(
+                    (
+                        table.start_line,
+                        table.end_line,
+                        table_lines,
+                        True,
+                        start_line in tables_needing_md060,
+                    )
+                )
+
+        # Add tables that need MD060 but have no fixes or MD013
+        for start_line, (table, table_lines) in tables_needing_md060.items():
+            # Check if already in fixes or MD013 list
+            if not any(mod[0] == start_line for mod in all_modifications):
+                all_modifications.append(
+                    (table.start_line, table.end_line, table_lines, False, True)
+                )
+
+        return all_modifications
+
+    def _insert_markdownlint_comments(
+        self,
+        new_lines: list[str],
+        lines: list[str],
+        start_idx: int,
+        end_idx: int,
+        disable_rules: list[str],
+    ) -> None:
+        """Wrap ``new_lines`` in markdownlint disable/enable comments in place.
+
+        Existing disable/enable comments within three lines of the table are
+        detected so duplicates are not added.
+        """
+        disable_comment = " ".join(disable_rules)
+
+        # Check if disable comment already exists within 3 lines before table
+        has_disable = False
+        check_start = max(0, start_idx - 3)
+        for i in range(check_start, start_idx):
+            found_rules = self._parse_markdownlint_comment(lines[i], "disable")
+            if all(rule in found_rules for rule in disable_rules):
+                has_disable = True
+                break
+
+        # Check if enable comment already exists within 3 lines after table
+        has_enable = False
+        check_end = min(len(lines), end_idx + 3)
+        for i in range(end_idx, check_end):
+            found_rules = self._parse_markdownlint_comment(lines[i], "enable")
+            if all(rule in found_rules for rule in disable_rules):
+                has_enable = True
+                break
+
+        # Add disable comment if not present
+        if not has_disable:
+            # Check for blank line before table
+            if start_idx > 0 and lines[start_idx - 1].strip():
+                # No blank line, add both blank line and comment
+                new_lines.insert(0, "\n")
+                new_lines.insert(
+                    1,
+                    f"<!-- markdownlint-disable {disable_comment} -->\n",
+                )
+                new_lines.insert(2, "\n")
+            else:
+                # Blank line exists, just add comment
+                new_lines.insert(
+                    0,
+                    f"<!-- markdownlint-disable {disable_comment} -->\n",
+                )
+                new_lines.insert(1, "\n")
+
+        # Add enable comment if not present
+        if not has_enable:
+            # Always add blank line and enable comment
+            new_lines.append("\n")
+            new_lines.append(
+                f"<!-- markdownlint-enable {disable_comment} -->\n"
+            )
