@@ -35,13 +35,10 @@ class TableValidator:
         if not self.table.rows:
             return violations
 
-        # Check for alignment issues
         violations.extend(self._check_alignment())
 
-        # Check for spacing issues
         violations.extend(self._check_spacing())
 
-        # Check separator row format
         violations.extend(self._check_separator())
 
         # Check line length (MD013)
@@ -65,7 +62,6 @@ class TableValidator:
         if not column_widths:
             return violations
 
-        # Check each row for proper alignment
         for row in self.table.rows:
             if len(row.cells) != len(column_widths):
                 # Inconsistent column count
@@ -120,7 +116,6 @@ class TableValidator:
             for idx, cell in enumerate(row.cells):
                 content = cell.content
 
-                # Check for missing space on left
                 if content and not content.startswith(" "):
                     violations.append(
                         TableViolation(
@@ -136,7 +131,6 @@ class TableValidator:
                         )
                     )
 
-                # Check for missing space on right
                 if content and not content.endswith(" "):
                     violations.append(
                         TableViolation(
@@ -174,7 +168,6 @@ class TableValidator:
         if not separator_row.is_separator:
             return violations
 
-        # Check that separator has same column count as header
         header_row = self.table.rows[0]
         if len(separator_row.cells) != len(header_row.cells):
             violations.append(
@@ -206,7 +199,6 @@ class TableValidator:
         if not self.table.rows:
             return []
 
-        # Get max column count
         max_cols = max(len(row.cells) for row in self.table.rows)
 
         widths: list[int] = []
