@@ -349,20 +349,22 @@ toml = [
 
 [[package]]
 name = "dependamerge"
-version = "0.8.0"
+version = "0.9.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiolimiter" },
     { name = "httpx", extra = ["http2"] },
     { name = "pydantic" },
     { name = "pygerrit2" },
+    { name = "requests" },
     { name = "rich" },
     { name = "tenacity" },
     { name = "typer" },
+    { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9b/da/84eae93c2a03a5761caf9ea368519148fb571c32534a513c3339046f1e57/dependamerge-0.8.0.tar.gz", hash = "sha256:ff28ec61d5c8e6cc2ab82a06da942ad4a72c6c9b021e77f53627dd1e1d5778a3", size = 277909, upload-time = "2026-07-10T13:24:41.006Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bc/4f/f17c5dee923b6306886093ea072779cafbf4e8e4fa249dde839f075c9ae8/dependamerge-0.9.1.tar.gz", hash = "sha256:f23ad9db26e487c05053f239468fe3263586439eb83711f72f217568e1f9b75a", size = 289887, upload-time = "2026-07-21T10:54:12.305Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/16/fb/c42b2bf63a240277a4b9c87753f642c9ce6199f765ddef9b301aa9c594ae/dependamerge-0.8.0-py3-none-any.whl", hash = "sha256:7fe609be561f7b7843141d73146e1fa4c640d84b311c28e4b114bfb726379af2", size = 283923, upload-time = "2026-07-10T13:24:39.463Z" },
+    { url = "https://files.pythonhosted.org/packages/ff/b9/c2562f0c64b109a7c6e548289895ba21ead297acf9cbfbf6336b05027cba/dependamerge-0.9.1-py3-none-any.whl", hash = "sha256:acdacc3a5e6378d7c32cf1e4b8da9d33f231eb22616eb7c67b4c868579717616", size = 295853, upload-time = "2026-07-21T10:54:10.693Z" },
 ]
 
 [[package]]
@@ -624,7 +626,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiolimiter", specifier = ">=1.2.1" },
-    { name = "dependamerge", specifier = ">=0.1.19" },
+    { name = "dependamerge", specifier = ">=0.9.1" },
     { name = "httpx", extras = ["http2"], specifier = ">=0.28.1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.17.1" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.5.0" },

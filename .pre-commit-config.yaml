@@ -67,7 +67,7 @@ repos:
           - tenacity>=9.1.2
           - typer>=0.20.0
           - rich>=14.2.0
-          - dependamerge>=0.1.19
+          - dependamerge>=0.9.1
           - httpx[http2]>=0.28.1
 
   - repo: https://github.com/btford/write-good
