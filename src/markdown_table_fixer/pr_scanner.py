@@ -3,6 +3,8 @@
 
 """Scanner for identifying pull requests with markdown table issues."""
 
+# aislop-ignore-file complexity/file-too-large -- cohesive PR scanner module
+
 from __future__ import annotations
 
 import asyncio
@@ -82,7 +84,6 @@ class PRScanner:
         async for repo in self._iter_org_repositories(org):
             repos.append(repo)
 
-        # Process all repos with bounded concurrency
         tasks = [
             asyncio.create_task(self._process_repo(repo, include_drafts))
             for repo in repos
@@ -142,7 +143,6 @@ class PRScanner:
         self, owner: str, repo_name: str, repo_full_name: str
     ) -> list[dict[str, Any]]:
         """Fetch every open PR node for a repo, following pagination."""
-        # Fetch first page of PRs with status checks
         try:
             (
                 prs_nodes,

@@ -122,7 +122,6 @@ class GitHubClient:
                     json_response if isinstance(json_response, dict) else {}
                 )
 
-                # Check for GraphQL errors
                 if "errors" in result:
                     errors = result["errors"]
                     msg = f"GraphQL errors: {errors}"
@@ -213,6 +212,7 @@ class GitHubClient:
             msg = f"Failed to decode file content: {e}"
             raise FileAccessError(msg) from e
 
+    # aislop-ignore-next-line complexity/too-many-params -- GitHub contents API shape
     async def update_file(
         self,
         owner: str,
@@ -284,7 +284,6 @@ class GitHubClient:
         Returns:
             Commit data
         """
-        # Get the current commit SHA for the branch
         ref_result = await self._request(
             "GET",
             f"/repos/{owner}/{repo}/git/ref/heads/{branch}",
@@ -295,7 +294,6 @@ class GitHubClient:
 
         base_commit_sha = ref_result["object"]["sha"]
 
-        # Get the base commit to retrieve its tree SHA
         commit_result = await self._request(
             "GET",
             f"/repos/{owner}/{repo}/git/commits/{base_commit_sha}",
@@ -306,13 +304,11 @@ class GitHubClient:
 
         base_tree_sha = commit_result["tree"]["sha"]
 
-        # Create blobs for each file
         tree_items = []
         for file_info in files:
             path = file_info["path"]
             content = file_info["content"]
 
-            # Create blob
             blob_result = await self._request(
                 "POST",
                 f"/repos/{owner}/{repo}/git/blobs",
@@ -336,7 +332,6 @@ class GitHubClient:
                 }
             )
 
-        # Create new tree
         tree_result = await self._request(
             "POST",
             f"/repos/{owner}/{repo}/git/trees",
@@ -351,7 +346,6 @@ class GitHubClient:
 
         new_tree_sha = tree_result["sha"]
 
-        # Create new commit
         commit_payload: dict[str, Any] = {
             "message": message,
             "tree": new_tree_sha,
@@ -381,7 +375,6 @@ class GitHubClient:
 
         new_commit_sha = commit_create_result["sha"]
 
-        # Update branch reference
         update_result = await self._request(
             "PATCH",
             f"/repos/{owner}/{repo}/git/refs/heads/{branch}",

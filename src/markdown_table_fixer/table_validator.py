@@ -268,7 +268,6 @@ class TableValidator:
                     continue
                 positions.append(display_pos)
 
-            # Update display position based on character width
             char_width = wcwidth.wcwidth(char)
             display_pos += char_width if char_width >= 0 else 1
 

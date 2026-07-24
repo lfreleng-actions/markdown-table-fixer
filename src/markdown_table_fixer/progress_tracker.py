@@ -1,43 +1,52 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2025 The Linux Foundation
 
+# aislop-ignore-file complexity/file-too-large -- cohesive progress tracker
+
 from contextlib import suppress
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 _rich_available = False
 
-try:
+if TYPE_CHECKING:
     from rich.console import Console
     from rich.live import Live
     from rich.text import Text
+else:
+    # At runtime, prefer the real Rich classes and fall back to lightweight
+    # stubs so the CLI keeps working when Rich is not installed.
+    try:
+        from rich.console import Console
+        from rich.live import Live
+        from rich.text import Text
 
-    _rich_available = True
-except ImportError:
+        _rich_available = True
+    except ImportError:
 
-    class Live:  # type: ignore[no-redef]
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            pass
+        class Live:
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                pass
 
-        def start(self) -> None:
-            pass
+            def start(self) -> None:
+                pass
 
-        def stop(self) -> None:
-            pass
+            def stop(self) -> None:
+                pass
 
-        def update(self, *args: Any) -> None:
-            pass
+            def update(self, *args: Any) -> None:
+                pass
 
-    class Text:  # type: ignore[no-redef]
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            pass
+        class Text:
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                pass
 
-        def append(self, *args: Any, **kwargs: Any) -> None:
-            pass
+            def append(self, *args: Any, **kwargs: Any) -> None:
+                pass
 
-    class Console:  # type: ignore[no-redef]
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            pass
+        class Console:
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                pass
 
 
 class ProgressTracker:
@@ -274,6 +283,7 @@ class ProgressTracker:
 
         # Only print if display has changed to avoid spam
         if current_display != self._last_display:
+            # aislop-ignore-next-line python-print-debug -- fallback console output
             print(f"\r{current_display}\n", end="", flush=True)
             self._last_display = current_display
 

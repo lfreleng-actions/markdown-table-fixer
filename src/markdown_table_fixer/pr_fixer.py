@@ -3,6 +3,8 @@
 
 """Fixer for markdown tables in pull requests."""
 
+# aislop-ignore-file complexity/file-too-large -- cohesive PR fixer module
+
 from __future__ import annotations
 
 from contextlib import suppress
@@ -149,7 +151,6 @@ class PRFixer:
                         config = {}
                 elif config_file.endswith((".json", ".jsonc", "rc")):
                     if config_file.endswith(".jsonc"):
-                        # Remove comments from JSONC
                         content = re.sub(
                             r"//.*$", "", content, flags=re.MULTILINE
                         )
@@ -237,8 +238,6 @@ class PRFixer:
             - has_issues: Whether validation issues were found
             - fixed_content: The fixed content (may be same as input)
         """
-        from pathlib import Path
-
         from .table_fixer import FileFixer
         from .table_parser import TableParser
 
@@ -545,9 +544,7 @@ class PRFixer:
             # Check if it was merged
             is_merged = pr_data.get("merged", False)
             state_display = (
-                "merged"
-                if is_merged
-                else (pr_state if pr_state else "closed")
+                "merged" if is_merged else (pr_state if pr_state else "closed")
             )
             return GitHubFixResult(
                 pr_info=pr_info,
@@ -608,19 +605,14 @@ class PRFixer:
                 markdown_files = await self._find_markdown_files(
                     repo_dir, owner, repo, pr_info, pr_changes_only
                 )
-                self.logger.debug(
-                    f"Found {len(markdown_files)} markdown files"
-                )
+                self.logger.debug(f"Found {len(markdown_files)} markdown files")
 
                 stats = await self._fix_markdown_files(
                     markdown_files, owner, repo, pr_info
                 )
 
-                # Handle no files modified or dry-run mode
                 if not stats.files_modified or dry_run:
-                    return self._build_dry_run_result(
-                        pr_info, stats, repo_dir
-                    )
+                    return self._build_dry_run_result(pr_info, stats, repo_dir)
 
                 if not self._stage_changes(
                     repo_dir, config_mode, stats.files_modified
@@ -643,9 +635,7 @@ class PRFixer:
             except subprocess.CalledProcessError as e:
                 sanitized_stderr = self._sanitize_message(e.stderr or "")
                 sanitized_error = self._sanitize_message(str(e))
-                self.logger.error(
-                    f"Git operation failed: {sanitized_stderr}"
-                )
+                self.logger.error(f"Git operation failed: {sanitized_stderr}")
                 return GitHubFixResult(
                     pr_info=pr_info,
                     success=False,
@@ -843,7 +833,6 @@ class PRFixer:
             file_names = [
                 str(f.relative_to(repo_dir)) for f in stats.files_modified
             ]
-            # Build multi-line message breaking down each type of fix
             message_lines = [
                 f"Would fix {len(stats.files_modified)} file(s): {', '.join(file_names)}"
             ]
@@ -965,7 +954,6 @@ class PRFixer:
         self, pr_info: PRInfo, stats: _TableFixStats, repo_dir: Path
     ) -> GitHubFixResult:
         """Build the result returned after a successful push."""
-        # Build multi-line message with file names and breakdown
         file_names = [
             str(f.relative_to(repo_dir)) for f in stats.files_modified
         ]
@@ -1247,7 +1235,6 @@ class PRFixer:
             lines = content.splitlines(keepends=True)
             self.logger.debug(f"File has {len(lines)} lines")
 
-            # Create temp file to allow validation and filtering
             temp_path = _sanitized_temp_path(filename)
             temp_path.write_text(content, encoding="utf-8")
 
@@ -1259,7 +1246,6 @@ class PRFixer:
                 self.logger.debug(f"No tables found in {filename}")
                 return None
 
-            # Fetch max line length from repository's markdownlint config
             if self._cached_max_line_length is None:
                 self._cached_max_line_length = (
                     await self._get_markdownlint_max_line_length(
@@ -1345,9 +1331,7 @@ class PRFixer:
                 f"Files updated:\n"
             )
             for file_info in updates.fixed_files:
-                commit_message += (
-                    f"- {file_info['filename']}: {file_info['tables']} table(s)\n"
-                )
+                commit_message += f"- {file_info['filename']}: {file_info['tables']} table(s)\n"
 
             author_name = "markdown-table-fixer"
             author_email = "markdown-table-fixer@linuxfoundation.org"

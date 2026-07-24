@@ -3,8 +3,8 @@
 
 """GraphQL queries for efficient organization scanning."""
 
-# Lightweight query to list repositories without PR nodes for accurate counting
-# This is the SAME query used by dependamerge for efficient repo enumeration
+# Mirrors dependamerge's repo enumeration query so organization counts stay
+# consistent; excludes PR nodes to keep the response small.
 ORG_REPOS_ONLY = """
 query($org: String!, $reposCursor: String) {
   organization(login: $org) {

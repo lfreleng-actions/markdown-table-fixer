@@ -3,8 +3,10 @@
 # SPDX-FileCopyrightText: 2025 The Linux Foundation
 
 ci:
-  # pre-commit.ci sandbox prevents network calls; disable gha-workflow-linter
-  skip: [pytest, gha-workflow-linter]
+  # pre-commit.ci sandbox prevents network calls; disable gha-workflow-linter.
+  # aislop also runs engines that can call the network at scan time
+  # (dependency audits), so it cannot run in the sandbox either.
+  skip: [pytest, gha-workflow-linter, aislop]
   autofix_commit_msg: |
     Chore: pre-commit autofixes
 
@@ -140,5 +142,20 @@ repos:
         entry: uv
         args: [run, pytest, --tb=short, -q]
         language: system
+        pass_filenames: false
+        always_run: true
+
+      # Catch AI slop developer-side before it reaches a pull request.
+      # Runs the full-repository quality gate, scored against
+      # .aislop/config.yml (failBelow: 100). A local hook installing the
+      # published npm package: the scanaislop/aislop git repository does
+      # not ship the built dist/, so its bundled pre-commit hook cannot
+      # install. Bump the pinned version here manually when new aislop
+      # releases ship.
+      - id: aislop
+        name: aislop
+        entry: aislop ci --human
+        language: node
+        additional_dependencies: ["aislop@0.13.1"]
         pass_filenames: false
         always_run: true

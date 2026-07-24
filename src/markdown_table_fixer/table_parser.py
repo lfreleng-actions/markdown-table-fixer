@@ -69,7 +69,6 @@ class TableParser:
             # Check if this line is part of a table
             if self._is_table_row(line):
                 if not in_table:
-                    # Start of a new table
                     in_table = True
                     table_start = line_num
                     table_rows = []
@@ -92,7 +91,6 @@ class TableParser:
                 table_start = -1
                 table_rows = []
 
-        # Handle table at end of file
         if in_table and table_rows:
             tables.append(
                 MarkdownTable(
@@ -201,7 +199,6 @@ class TableParser:
         i = 0
 
         while i < len(text):
-            # Check for backslash-escaped pipe
             if i < len(text) - 1 and text[i : i + 2] == r"\|":
                 # Keep the escaped pipe in the content
                 current.append(text[i : i + 2])

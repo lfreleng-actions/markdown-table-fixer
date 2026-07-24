@@ -90,7 +90,6 @@ class BlockedPRScanner:
                 organization, include_drafts=include_drafts
             )
         finally:
-            # Stop progress tracker before yielding results
             if self.progress_tracker:
                 self.progress_tracker.stop()
 
@@ -166,9 +165,8 @@ class BlockedPRScanner:
             - pr_data: Raw PR data dict from GraphQL
             - is_blocked: Boolean indicating if PR is blocked
         """
-        # For this use case, we need to fetch ALL PRs, not just blocked ones
-        # This requires using the lower-level iteration methods
-        # For now, we'll note this is a TODO and focus on the blocked-only case
+        # Fetching every PR (not just blocked ones) needs the lower-level
+        # iteration methods; only blocked-only scanning is supported today.
         raise NotImplementedError(
             "Scanning all PRs (not just blocked) is not yet implemented. "
             "Use scan_organization_for_blocked_prs() for blocked-only scanning."

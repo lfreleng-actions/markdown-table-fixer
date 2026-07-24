@@ -3,6 +3,8 @@
 
 """Fixer for markdown table formatting."""
 
+# aislop-ignore-file complexity/file-too-large -- cohesive table fixer module
+
 from __future__ import annotations
 
 import json
@@ -748,7 +750,6 @@ class FileFixer:
 
         # Add disable comment if not present
         if not has_disable:
-            # Check for blank line before table
             if start_idx > 0 and lines[start_idx - 1].strip():
                 # No blank line, add both blank line and comment
                 new_lines.insert(0, "\n")

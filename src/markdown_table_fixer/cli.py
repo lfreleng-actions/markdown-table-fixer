@@ -3,6 +3,8 @@
 
 """Command-line interface for markdown-table-fixer."""
 
+# aislop-ignore-file complexity/file-too-large -- cohesive CLI entry point
+
 from __future__ import annotations
 
 import asyncio
@@ -675,7 +677,6 @@ async def _collect_blocked_prs(
                 merge_state_status="",  # Will be determined by blocking reasons
             )
 
-            # Extract blocking reasons from dependamerge
             blocking_reasons = [r.description for r in unmergeable_pr.reasons]
 
             prs_to_process.append(
