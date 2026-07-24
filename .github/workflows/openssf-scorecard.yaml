@@ -28,7 +28,7 @@ jobs:
   openssf-scorecard:
     name: "OpenSSF Scorecard"
     # yamllint disable-line rule:line-length
-    uses: lfit/releng-reusable-workflows/.github/workflows/reuse-openssf-scorecard.yaml@490195325b0f5b83e1de13df2dac6520d86ba1fb  # v0.8.0
+    uses: lfit/releng-reusable-workflows/.github/workflows/reuse-openssf-scorecard.yaml@5278f76fc1d27c49d0c9f795a6ddea65eeb5c11b  # v0.8.1
     permissions:
       contents: read  # Read repository contents (checkout, etc.)
       # yamllint disable-line rule:line-length
