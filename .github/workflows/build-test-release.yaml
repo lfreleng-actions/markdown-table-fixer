@@ -57,7 +57,7 @@ jobs:
     steps:
       - name: 'Load egress allow-list (block mode)'
         # yamllint disable-line rule:line-length
-        uses: lfreleng-actions/harden-runner-block-action@6db537b3e6d060c3287c5a3ce2c28b55b0af330d  # v0.2.1
+        uses: lfreleng-actions/harden-runner-block-action@d86087ddc1c2d27182a886ec788d39b88201c8ed  # v0.3.0
         with:
           config: ${{ env.HARDEN_RUNNER_ALLOWLIST }}
       - name: 'Harden runner (block)'
@@ -92,7 +92,7 @@ jobs:
     steps:
       - name: 'Load egress allow-list (block mode)'
         # yamllint disable-line rule:line-length
-        uses: lfreleng-actions/harden-runner-block-action@6db537b3e6d060c3287c5a3ce2c28b55b0af330d  # v0.2.1
+        uses: lfreleng-actions/harden-runner-block-action@d86087ddc1c2d27182a886ec788d39b88201c8ed  # v0.3.0
         with:
           config: ${{ env.HARDEN_RUNNER_ALLOWLIST }}
       - name: 'Harden runner (block)'
