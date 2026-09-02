@@ -41,7 +41,7 @@ jobs:
       attestations: write   # Build provenance attestations
     # Pinned to python-workflows v0.1.1 release commit
     # yamllint disable-line rule:line-length
-    uses: lfreleng-actions/python-workflows/.github/workflows/build-test-release.yaml@612a19f57f5352973908d58d9bf29e448eaed9f1  # v0.3.2
+    uses: lfreleng-actions/python-workflows/.github/workflows/build-test-release.yaml@cc69d423cff67cec2b67f05f8200dd261af5efab  # v0.3.3
 
   test-pypi:
     name: 'Test PyPI Publishing'
