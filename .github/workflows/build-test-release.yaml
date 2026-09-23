@@ -39,7 +39,7 @@ jobs:
       id-token: write       # OIDC for build provenance attestations
       attestations: write   # Build provenance attestations
     # yamllint disable-line rule:line-length
-    uses: lfreleng-actions/python-workflows/.github/workflows/build-test-release.yaml@b29621b4859bf5b6fbd7202977cd73334f54e29d  # v0.4.0
+    uses: lfreleng-actions/python-workflows/.github/workflows/build-test-release.yaml@2b326364c9dfffe1b6c8fddab5b517d8c92e5f5c  # v0.5.0
 
   test-pypi:
     name: 'Test PyPI Publishing'
