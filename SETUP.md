@@ -217,7 +217,7 @@ jobs:
 
 ### Prerequisites
 
-- Python 3.10 or higher
+- Python 3.11 or higher
 - Git
 - uv (recommended) or pip
 
@@ -413,7 +413,7 @@ pip install --upgrade certifi
 
 ### Linux
 
-Ensure Python 3.10+ is available:
+Ensure Python 3.11+ is available:
 
 ```bash
 python3 --version
