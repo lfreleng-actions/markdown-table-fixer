@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 import logging
 from pathlib import Path  # noqa: TC003
 import subprocess
@@ -13,9 +13,7 @@ import subprocess
 logger = logging.getLogger(__name__)
 
 
-# Inherit from (str, Enum) rather than enum.StrEnum to preserve Python
-# 3.10 support (StrEnum was only added in 3.11; see requires-python).
-class GitConfigMode(str, Enum):  # noqa: UP042
+class GitConfigMode(StrEnum):
     """Git configuration modes."""
 
     USER_INHERIT = (

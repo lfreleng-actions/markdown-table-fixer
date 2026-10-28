@@ -150,7 +150,7 @@ Robust error handling with specific exception types:
 
 - **Modular Design**: Separate modules for parsing, validation, and fixing
 - **Type Safety**: Full type hints throughout the codebase
-- **Modern Python**: Uses Python 3.10+ features
+- **Modern Python**: Uses Python 3.11+ features
 - **Async Support**: Ready for async GitHub operations (future)
 
 ### Code Quality
