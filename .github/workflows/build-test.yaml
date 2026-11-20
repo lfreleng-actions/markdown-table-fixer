@@ -31,4 +31,4 @@ jobs:
       contents: read  # Check out the repository to build and test.
       pull-requests: read  # Read PR metadata for status reporting.
     # yamllint disable-line rule:line-length
-    uses: lfreleng-actions/python-workflows/.github/workflows/build-test.yaml@d9336718eea42197699c233134f3b34a69520012  # v0.7.0
+    uses: lfreleng-actions/python-workflows/.github/workflows/build-test.yaml@29e6dfbbf37206cc5334475969ca48d44f117af7  # v0.7.2
