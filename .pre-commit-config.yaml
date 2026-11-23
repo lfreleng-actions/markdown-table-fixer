@@ -7,7 +7,7 @@ ci:
   # pre-commit.ci sandbox prevents network calls; disable gha-workflow-linter.
   # aislop also runs engines that can call the network at scan time
   # (dependency audits), so it cannot run in the sandbox either.
-  skip: [pytest, gha-workflow-linter, aislop]
+  skip: [gha-workflow-linter, aislop]
   autofix_commit_msg: |
     Chore: pre-commit autofixes
 
@@ -138,14 +138,6 @@ repos:
 
   - repo: local
     hooks:
-      - id: pytest
-        name: pytest
-        entry: uv
-        args: [run, pytest, --tb=short, -q]
-        language: system
-        pass_filenames: false
-        always_run: true
-
       # Catch AI slop developer-side before it reaches a pull request.
       # Runs the full-repository quality gate, scored against
       # .aislop/config.yml (failBelow: 100). A local hook installing the
