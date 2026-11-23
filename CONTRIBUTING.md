@@ -72,16 +72,19 @@ Use descriptive branch names:
 
 ### Testing
 
-Run tests with pytest:
+CI runs the test suite on pull requests against `main` or `master`,
+except those that change only files under `.github/`, root dotfiles or
+`tox.ini` (see `.github/workflows/build-test.yaml`). The pre-commit
+hooks do not run the tests, so run them locally before you push:
 
 ```bash
-pytest
+uv run pytest
 ```
 
 Run tests with coverage:
 
 ```bash
-pytest --cov=markdown_table_fixer --cov-report=html
+uv run pytest --cov=markdown_table_fixer --cov-report=html
 ```
 
 ### Code Quality
