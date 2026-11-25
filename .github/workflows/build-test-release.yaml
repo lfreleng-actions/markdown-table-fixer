@@ -68,7 +68,7 @@ jobs:
 
       - name: 'Test PyPI publishing'
         # yamllint disable-line rule:line-length
-        uses: lfreleng-actions/pypi-publish-action@b60c42d3d7b32ccf4c851d9e2995530965a6e9cd  # v0.2.4
+        uses: lfreleng-actions/pypi-publish-action@0be286a285a857cb1db4e4363500894c91e4685b  # v0.2.6
         with:
           environment: development
           tag: ${{ needs.release.outputs.tag }}
@@ -103,7 +103,7 @@ jobs:
 
       - name: 'PyPI release'
         # yamllint disable-line rule:line-length
-        uses: lfreleng-actions/pypi-publish-action@b60c42d3d7b32ccf4c851d9e2995530965a6e9cd  # v0.2.4
+        uses: lfreleng-actions/pypi-publish-action@0be286a285a857cb1db4e4363500894c91e4685b  # v0.2.6
         with:
           environment: production
           tag: ${{ needs.release.outputs.tag }}
